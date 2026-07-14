@@ -9,23 +9,28 @@
 ## 1. 资源层级
 
 ```
-Workspace（工作区，单组织自部署下为单一固定实例，非多租户）
+Workspace（工作区，单组织自部署下为单一固定实例）
+  │
   ├── Environment（环境，软标签：prod/test/dev，支持继承）—— 用于策略选择
-  └── Project（项目，硬归属容器）—— 权限授予的基本单元
-        └── Instance（实例 = 一个物理 DB 连接：host:port + 引擎 + DataSources）
-              └── Database（逻辑库；归属于一个 Project）
-                    └── Schema（PG 概念；MySQL 无此层）
-                          ├── Table
-                          │     └── Column (+ Index, ForeignKey, Check, Trigger, Partition...)
-                          ├── View / MaterializedView
-                          ├── Function / Procedure
-                          └── Sequence / ...
+  │
+  ├── Project（项目 = 产品团队的逻辑隔离边界）── 成员/权限自治
+  │     └── Database（逻辑库；必属且仅属一个 Project）── 隔离的最小单元
+  │           └── Schema（PG 概念；MySQL 无此层）
+  │                 ├── Table → Column (+ Index, ForeignKey, Check, Trigger, Partition...)
+  │                 ├── View / MaterializedView
+  │                 ├── Function / Procedure
+  │                 └── Sequence / ...
+  │
+  └── Instance（实例 = 一个物理 DB 连接：host:port + 引擎 + DataSources）── 平台级共享
+        └── 承载多个 Database（可分属不同 Project）
 ```
 
 关键点：
+- **Project 是逻辑隔离边界**（产品团队）：每个 Database 必属且仅属一个 Project；权限与成员在 Project 内自治；**跨 Project 默认隔离**（见 [02 §2.4](./02-permission-and-access.md)）。
+- **Instance 是平台级共享资源**，不属于任何 Project；一个 Instance 可同时承载**多个 Project** 的 Database（团队共用一台库服务器，但各自的库互相隔离）。
 - **Instance 与 Database 是持久化的一等资源**（关系表行）。
 - **Schema / Table / Column 不是独立行**，而是作为嵌套元数据结构（`DatabaseSchemaMetadata`）整体存储 + 缓存。
-- **Project = 硬归属**（Database 必属一个 Project，外键）；**Environment = 软标签**（可挂在 Instance 或 Database 上，Database 未设则继承 Instance 的）。
+- **Environment = 软标签**（可挂在 Instance 或 Database 上，Database 未设则继承 Instance 的）。
 
 ---
 
@@ -149,8 +154,8 @@ ColumnMetadata → name, position, type, nullable, default, comment, is_identity
 
 ## 7. 可见性与展示
 
-- **资源树**：按 Project → Environment → Instance → Database → Schema → Table/View → Column 层级展示。
-- 仅展示用户有访问权的库（IAM 过滤）。
+- **资源树**：按 **Project**（团队隔离边界）→ Database → Schema → Table/View → Column 层级展示；用户只能看到自己所属 Project 下的库（跨 Project 默认不可见，见 [02 §2.4](./02-permission-and-access.md)）。Instance 作为平台资源在「实例管理」页单独管理。
+- 仅展示用户有访问权的库（Project 成员关系 + IAM 过滤）。
 - 表详情：列定义、索引、外键、行数/大小、DDL、数据预览（受权限/脱敏）。
 - 支持结构搜索（按表名/列名）。
 

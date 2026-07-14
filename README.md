@@ -24,6 +24,7 @@
 | [07-resource-management.md](./07-resource-management.md) | 资源管理 | instance/database/schema/table/view/column 资源模型、元数据发现与同步 |
 | [08-nfr.md](./08-nfr.md) | 非功能性需求、风险与验收 | 性能/可用性/安全/合规、风险对策、验收标准 |
 | [09-sql-favorite-share.md](./09-sql-favorite-share.md) | SQL 收藏与分享 | 个人收藏夹、基于 Worksheet 可见性的安全分享、分享链接 |
+| [10-data-model.md](./10-data-model.md) | 数据模型 | 平台元数据库表结构（简洁可扩展，PostgreSQL DDL） |
 
 ---
 

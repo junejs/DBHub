@@ -64,6 +64,18 @@
 ### 2.3 自定义角色（可选扩展）
 - 支持创建自定义角色（权限子集组合），预置角色不可改不可删。
 
+### 2.4 Project：产品团队的逻辑隔离边界（核心概念）
+
+> 公司按**产品团队**划分，每个团队在自己的 **Project** 内管理自己的数据库、成员与权限。**Project 是平台的一等逻辑隔离单元。**
+
+- **资源归属**：每个**数据库**必属且仅属一个 Project（`databases.project_id`）。实例（Instance）是平台级共享资源——一个实例可同时承载多个 Project 的数据库。
+- **成员制**：用户通过在 Project 上获得角色而成为该 Project 的成员（即「项目角色绑定 = 成员关系」）。一个用户可属于多个 Project（跨团队人员）。
+- **默认跨 Project 隔离（Default Deny）**：用户对 Project A 的数据库没有任何访问权，除非他被授予了 Project A 的角色（或工作区级跨项目角色）。查询/导出/JIT 在执行前会解析目标库所属 Project，并强制校验调用者在**该 Project** 内的访问权。
+- **可见性隔离**：用户能看到的 Project 列表 = 他持有角色的 Project（+ 工作区角色可见全部）。Project A 的成员在资源树/工作台里看不到 Project B 的库。
+- **两层角色作用域**：
+  - **Project 角色**（`projectOwner` / `sqlEditorUser` / `sqlEditorReadUser` / 自定义）：仅在所属 Project 内生效，是该 Project 数据访问权的来源。
+  - **Workspace 角色**（`workspaceAdmin` / `workspaceDBA` / `securityAdmin`）：跨 Project 的平台级权限（管理实例、IdP、审计、全局脱敏策略等）。
+
 ---
 
 ## 3. IAM 绑定（数据级授权）
@@ -83,8 +95,11 @@ IamPolicy {
 ```
 
 - **members** 类型：`user:{email}`、`group:{email}`、`serviceAccount:{email}`、`allUsers`。
-- **两层策略**：每个 Workspace 一份工作区策略；每个 Project 一份项目策略。
-- **判定规则**：工作区策略「或」项目策略——任一层授予即可；但若涉及具体 Project 资源，要求相关 Project 策略放行。
+- **两层策略**：每个 Workspace 一份工作区策略；**每个 Project 一份项目策略**——这是各团队自治设置自己成员与权限的载体。
+- **判定规则**：
+  - Workspace 角色授予平台级权限（跨 Project）。
+  - Project 资源的数据访问权（查询/导出等）**要求调用者在该 Project 内被放行**——这是 §2.4 跨 Project 隔离的执行点。
+  - CEL 条件在 Project 内进一步把权限收敛到具体库/表。
 
 ### 3.2 CEL 条件可用的资源变量
 
