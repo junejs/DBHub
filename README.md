@@ -28,6 +28,8 @@
 | [11-decisions.md](./11-decisions.md) | 决策记录 | 所有关键产品/架构决策及理由（交付团队必读） |
 | [12-api-contract.md](./12-api-contract.md) | API 契约 | 资源命名、通用约定、错误码目录、各服务 proto（前后端并行依据） |
 | [13-sequences.md](./13-sequences.md) | 核心时序图 | 登录、查询执行、异步导出、JIT 四条端到端流程（Mermaid） |
+| [14-edge-cases.md](./14-edge-cases.md) | 边界条件与异常处理 | 删除级联、并发、SQL×脱敏、分页、断连恢复、会话边界、审计容错 |
+| [15-ui.md](./15-ui.md) | UI 页面清单与线框 | 页面清单、核心页 ASCII 线框、交互状态约定（前端依据） |
 
 ---
 

@@ -1,0 +1,147 @@
+# 14 — 边界条件与异常处理矩阵
+
+> 后端开发必读。把"踩坑点"提前拍板:删除级联、并发、SQL×脱敏交互、分页、断连恢复、会话边界、输入/配额、审计容错。每条给出**默认行为**与**错误码**;标 ⚠️ 的为建议默认值,你可覆盖。
+
+---
+
+## A. 删除与级联
+
+原则:**统一软删除**(`deleted_at`);删除主资源时,依赖资源按"级联软删 / 保留为孤儿(隐藏) / 阻塞"三选一。
+
+| 删除对象 | 依赖资源 | 默认行为 | 说明 |
+|---|---|---|---|
+| **Instance** | 其 databases、data_sources | **级联软删**(连同库) | 库无实例无意义;操作需二次确认 + 审计 |
+| | 进行中的 sync | 取消该实例的同步任务 | |
+| | 引用该库的 worksheet/历史/导出 | **保留为孤儿**(UI 隐藏,不报错) | 历史数据不丢;库恢复后自动重现 |
+| **Database** | database_schemas / sync_history / column_annotations | **级联软删/清理** | 元数据随库走 |
+| | active access_grants(JIT) | 自动 REVOKE | |
+| | 引用的 worksheet/历史/导出 | **保留为孤儿** | 同上 |
+| **User** | (默认)**禁用**(`status=disabled`)而非硬删 | 保留 user 行,便于审计回溯 | 离职标准动作 |
+| | role_assignments、group_members | 移除 | |
+| | refresh_tokens / access_tokens | 全部吊销 | 立即踢下线 |
+| | 其创建的 worksheet | **保留**,creator 标记为已禁用用户 | 不转让,除非手动 |
+| | 其发起的 JIT | 自动 REVOKE | |
+| | favorites / notifications / query_history | 保留(本人已不可见) | |
+| **Group** | group_members | 级联删成员关系 | |
+| | role_assignments 中 `group:x@` | 保留绑定但永不命中(组成员为空) | 或同步清理,二选一 ⚠️(默认:保留) |
+| **Worksheet** | favorites / share_links | **级联删** | 收藏/链接指向的对象没了 |
+| **Project** | instances/databases/worksheets/export_tasks | ⚠️ **默认阻塞**:项目非空时拒绝删除,需先清理或显式 `force` 级联 | 防误删整团队资源 |
+| **Environment** | 被引用的 instances/databases | **阻塞**:仍有资源引用时不允许删/停用 | 先迁移标注 |
+| **Undelete** | — | 软删资源可恢复;唯一名冲突时返回 `RESOURCE_ALREADY_EXISTS` | |
+
+---
+
+## B. 并发与一致性
+
+| 场景 | 默认行为 | 错误码 |
+|---|---|---|
+| 多人同时编辑同一 worksheet | ETag 乐观锁;后写者失败 | `ABORTED CONCURRENT_MODIFICATION` |
+| 并发 SetIamPolicy | IamPolicy 带 etag;冲突失败 | `ABORTED CONCURRENT_MODIFICATION` |
+| 同库并发 schema 同步 | **advisory lock**(PG `pg_advisory_xact_lock`),第二个直接跳过本次 | 不报错,日志记录 |
+| 重复提交导出/创建任务 | `request_id` 幂等,返回首次结果 | — |
+| 权限缓存失效时机 | 改 IAM 绑定后**同步失效**该 scope 缓存;其余 ≤1s 最终一致 | — |
+| 引擎元数据(库列表)变更 与 缓存 | 懒刷新:发现过期后台异步刷新,当前用旧值 | — |
+
+---
+
+## C. SQL 与脱敏/谓词列的精确交互(最易出错)
+
+> 核心原则:**脱敏只改"输出列的值",无法阻止"通过聚合/过滤/分组推断明文"**。因此除 SELECT 输出外,敏感列出现在**任何会暴露其值的位置**都要按"谓词列"处理(拒绝或强制掩码比较)。
+
+| 场景 | 默认行为 | 错误码 |
+|---|---|---|
+| `SELECT phone` (敏感列在输出) | 输出掩码 | 正常返回(已脱敏) |
+| `WHERE phone='138...'` (谓词) | **拒绝** | `PREDICATE_COLUMN_REJECTED` |
+| `JOIN ON a.phone=b.phone` (谓词) | **拒绝** | `PREDICATE_COLUMN_REJECTED` |
+| `ORDER BY phone` | **拒绝**(可排序即泄露顺序/值域) | `PREDICATE_COLUMN_REJECTED` |
+| `GROUP BY phone` / `DISTINCT phone` | **拒绝** | `PREDICATE_COLUMN_REJECTED` |
+| 聚合:`SUM(salary)`、`AVG`、`COUNT(DISTINCT phone)` | **拒绝**(聚合结果泄露分布) | `PREDICATE_COLUMN_REJECTED` |
+| 函数包裹:`UPPER(phone)`、`SUBSTR(phone,1,3)` | **拒绝**(无法安全掩码函数结果) | `PREDICATE_COLUMN_REJECTED` |
+| 跨库 JOIN:另一库表的敏感列 | 按各列各自策略判定;任一敏感列触谓词即拒 | `PREDICATE_COLUMN_REJECTED` |
+| 子查询 / CTE / UNION | QuerySpan 递归展开,谓词列检查覆盖全部层 | 同上 |
+| VIEW 引用敏感列 | 查 VIEW 时按底层列策略判定 | 同上 |
+| 不支持脱敏的引擎查敏感列 | **拒绝查询** | `ENGINE_NOT_SUPPORTED` |
+| 查询报错但触及敏感列 | 错误信息**脱敏/截断** | 返回脱敏后 error |
+| 谓词列检查可配置 | 引擎能力开关 `isPredicateColumnsCheckEnabled`;关闭则退化为"仅输出掩码"(降级,记审计) | — |
+
+> ⚠️ "聚合/函数包裹敏感列一律拒绝"是**保守安全默认**。若某些场景需放开(如允许 `COUNT(*)` 不触及列值),可按语义类型白名单放宽——但默认拒绝。
+
+---
+
+## D. 结果集与分页
+
+| 场景 | 默认行为 |
+|---|---|
+| 分页协议 | **keyset 游标**(非 offset),游标不透明、不可构造;保证翻页稳定 |
+| 行数上限 | 取 `environment_policies.query_row_limit`;超限**截断**并标注"已截断,请导出" |
+| 结果字节上限 | 单结果集字节上限(防 OOM);超限**截断**或引导异步 |
+| 大结果传输 | **流式**(gRPC server-streaming `QueryResult`),前端边收边渲染 |
+| 客户端慢/背压 | 服务端限缓冲;超时取消 |
+| 二进制/JSON 列 | 按类型渲染;超大单值截断 |
+| 空结果 / 仅元数据 | 正常返回,rows 为空 |
+
+---
+
+## E. 任务与断连恢复
+
+| 场景 | 默认行为 |
+|---|---|
+| 导出任务跑到一半业务库断连 | `state=FAILED` + error;**不自动重试**(数据可能部分写入);用户手动重试 |
+| 导出流式写入中途进程崩 | 产物不完整;清理器按 `expires_at` 回收;任务标 FAILED |
+| schema 同步失败 | `sync_status=FAILED` + `sync_error`;退避重试(如 1/5/15min);查询用旧缓存 |
+| 长查询客户端断开 | 服务端 `context` 取消→取消 DB 查询;**审计仍写**(非取消 context) |
+| 元数据同步与查询并发 | 查询读缓存版本号;同步完成才切换缓存(原子替换) |
+| 连接池耗尽 | 排队 + 超时 → `UNAVAILABLE DB_CONNECTION_FAILED` |
+
+---
+
+## F. 会话与令牌边界
+
+| 场景 | 默认行为 | 错误码 |
+|---|---|---|
+| access token 过期,refresh 有效 | 前端自动 `Refresh` → 续期 | `AUTH_TOKEN_EXPIRED`(触发刷新) |
+| refresh 过期/被吊销 | 重定向登录 | `UNAUTHENTICATED` |
+| 改密 / 重置密码 | 吊销该用户所有 refresh token | — |
+| 登出 | 删 refresh + 清 Cookie | — |
+| MFA temp token 过期(>5min) | 要求重新登录第一步 | `AUTH_MFA_INVALID` |
+| **JIT grant 在查询执行中过期** | ⚠️ **查询开始时锁定 grant 有效性**;本次查询按既定(去脱敏与否)跑完,不中途切换 | — |
+| 登录失败次数超限 | 锁定(密码 10/10min,MFA 5/5min) | `AUTH_ACCOUNT_LOCKED` |
+| 查询/导出触发限流 | 拒绝 + `Retry-After` | `RESOURCE_EXHAUSTED RATE_LIMITED` |
+
+---
+
+## G. 数据/输入边界
+
+| 场景 | 默认行为 |
+|---|---|
+| 空语句 / 仅空白 | `INVALID_ARGUMENT` |
+| SQL 文本过大(如 >1MB) | `INVALID_ARGUMENT`(限值可配) |
+| 多语句数量超限 | `INVALID_ARGUMENT`(默认上限如 50 条) |
+| 引擎不支持多语句 | `MULTI_STATEMENT_NOT_SUPPORTED` |
+| 时区 | **存 UTC**,展示按用户/组织时区 |
+| 标识符大小写 | 按引擎规则(PG 折叠小写、MySQL 看 `lower_case_table_names`);catalog 匹配做归一化 |
+| 资源名非法字符 | `INVALID_ARGUMENT` |
+| 配额(每项目实例数、每用户 worksheet 数等) | 超限 `RESOURCE_EXHAUSTED`;配额值入 `settings` 可配 |
+
+---
+
+## H. 审计与容错
+
+| 场景 | 默认行为 |
+|---|---|
+| 审计写入失败(平台 DB 抖动) | ⚠️ **fail-open**:不阻塞用户请求 + stdout 镜像(尽力)+ 告警;后台补写重试 | 
+| 审计含 PII 字面量 | 按 D5 原样留存;读权限收紧(D26) |
+| 审计按月分区 | 分区不存在时自动建(或 pg_partman);老分区按保留期归档/清理 |
+| 审计读权限越界 | 服务端强制按 scope 过滤(projectOwner 只能读本项目) | `PERMISSION_DENIED` |
+
+---
+
+## 需你拍板的点(默认值已写入,可覆盖)
+
+1. **删项目**:默认"非空阻塞、需 `force` 级联"——防止误删整团队。同意?
+2. **删用户**:默认"禁用(soft)不硬删,其 worksheet 保留为孤儿"。同意?
+3. **聚合/函数包裹敏感列**:默认"一律拒绝"(最保守)。是否要为 `COUNT(*)` 这类不触列值的开白名单?
+4. **审计写入失败**:默认"fail-open(不阻塞用户)+ 告警 + 补写"。合规要求高的场景可能要 fail-closed(审计写不进就拒绝查询)——你倾向哪种?
+5. **删 group 后,`group:x@` 的历史绑定**:默认保留(永不命中)。是否要同步清理?
+
+其余均为无明显歧义的工程默认。
