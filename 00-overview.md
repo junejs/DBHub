@@ -107,12 +107,12 @@
 
 | 术语 | 定义 |
 |---|---|
-| **Instance（实例）** | 一个物理数据库连接（host:port + 引擎类型 + 连接凭据）；**平台级共享资源**，可承载多个 Project 的数据库 |
+| **Instance（实例）** | 一个物理数据库连接（host:port + 引擎类型 + 连接凭据）；**归属且仅归属一个 Project**，由该项目团队（projectOwner/projectDBA）管理 |
 | **DataSource（数据源）** | Instance 下的连接配置，分 ADMIN（管理连接，用于同步）与 READ_ONLY（只读连接，用于查询） |
-| **Database（数据库）** | Instance 内的逻辑库；**必属且仅属一个 Project，是项目隔离的最小单元** |
+| **Database（数据库）** | Instance 内的逻辑库；**项目归属由其 Instance 决定**（实例在哪个项目，库就在哪个项目） |
 | **Catalog（目录）** | 数据库的 schema 元数据（表/列/视图等）+ 平台侧标注（分类、脱敏语义类型） |
 | **Project（项目）** | **产品团队的逻辑隔离边界**：每个团队在自己的 Project 内管理数据库、成员与权限；跨 Project 默认隔离 |
-| **Environment（环境）** | 软标签（prod/test/dev），驱动策略选择，支持继承 |
+| **Environment（环境）** | 一等策略维度（dev/test/stage/prod）：实例必须标注、库可继承/覆盖；驱动访问控制、脱敏强度、查询/导出护栏（按环境差异化） |
 | **IAM Policy** | 类 GCP IAM 的权限绑定模型：`角色 × 成员 × (可选)CEL 条件` |
 | **CEL 条件** | 用 CEL 表达式将权限精确限定到具体库/表/列/环境 |
 | **Query Span** | 对 SQL 语句做静态分析得到的「读/写了哪些列、谓词列是哪些」的语义结构，用于细粒度授权 |

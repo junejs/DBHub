@@ -26,10 +26,13 @@
   identity_providers
 
 资源组织
-  projects            environments
-       │                  │ (tag)
-       ▼                  ▼
-  databases ──> instances ──< data_sources
+  projects            environments(tag)
+       │
+       ▼
+  instances ──< data_sources          （实例归属项目，由项目团队管理）
+       │
+       ▼
+  databases                            （库的项目归属由实例决定）
        │
        ▼
   database_schemas (1:1)        column_annotations (per column)
@@ -154,22 +157,37 @@ create table projects (
 );
 -- 注：项目成员关系 = role_assignments(scope_type='project')，不再单独建 project_members 表。
 
--- 环境（软标签，驱动策略选择）
+-- 环境（一等的策略维度；dev/test/stage/prod 等）
 create table environments (
-  id    bigint generated always as identity primary key,
-  key   text not null unique,                        -- 'prod' | 'test' | 'dev'
-  name  text,
-  rank  int not null default 0,
-  created_at timestamptz not null default now()
+  id              bigint generated always as identity primary key,
+  key             text not null unique,              -- 'prod' | 'stage' | 'test' | 'dev'
+  name            text,
+  protection_level int not null default 0,           -- 越大越受保护（prod 高、dev 低），驱动默认策略强度
+  color           text,                              -- 前端展示色，如 '#d4351c'
+  description     text,
+  rank            int not null default 0,            -- 排序
+  created_at      timestamptz not null default now()
 );
 
--- 实例（一个物理 DB 连接；平台级共享，不属于任何项目）
+-- 环境级运营策略（按环境差异化：护栏/脱敏/导出）
+create table environment_policies (
+  environment_id        bigint primary key references environments(id),
+  query_row_limit       int,                         -- 单次查询默认行数上限
+  query_cost_threshold  jsonb,                       -- {"soft":1e5,"hard":1e6} EXPLAIN 成本阈值
+  export_max_rows       bigint,                      -- 单次导出行数上限
+  export_require_approval boolean not null default false,  -- 导出是否需审批/JIT
+  masking_mode          text not null default 'strict',     -- strict | relaxed | off
+  settings              jsonb not null default '{}'  -- 扩展位
+);
+
+-- 实例（一个物理 DB 连接；【归属且仅归属一个项目】，由该项目管理）
 create table instances (
   id                    bigint generated always as identity primary key,
+  project_id            bigint not null references projects(id),  -- 实例所属项目（团队）
   name                  text not null unique,
   engine                text not null,               -- 'postgresql'（text，可扩展）
   engine_version        text,
-  environment_id        bigint references environments(id),
+  environment_id        bigint not null references environments(id),  -- 必填：每个实例必须标注环境
   activation            boolean not null default true,
   sync_interval_seconds int not null default 900,
   settings              jsonb not null default '{}', -- sync_databases、labels 等
@@ -178,7 +196,11 @@ create table instances (
   updated_at            timestamptz not null default now(),
   deleted_at            timestamptz
 );
--- 注：实例无 project_id——一个实例可承载多个项目的数据库（团队共用库服务器，各自库互相隔离）。
+create unique index instances_name_uidx on instances(name) where deleted_at is null;
+create index on instances(project_id) where deleted_at is null;
+create index on instances(environment_id) where deleted_at is null;
+-- 注：实例归属项目且必须标注环境。同一物理库服务器若被多团队使用，按团队分别注册为不同实例（各自项目下、各自凭据），
+--     因此实例是「团队自治的资源」，不再需要平台级管理员介入。
 
 -- 数据源（实例下的连接；每实例 1 个 admin + 至多 1 个 readonly）
 create table data_sources (
@@ -198,12 +220,14 @@ create table data_sources (
 create unique index one_admin_ds on data_sources(instance_id) where role = 'admin';
 create unique index one_readonly_ds on data_sources(instance_id) where role = 'readonly';
 
--- 数据库（实例内的逻辑库；【项目隔离的最小单元】，必属且仅属一个项目）
+-- 数据库（实例内的逻辑库；项目归属【由其所属实例决定】，不在本表冗余 project_id）
+--   - database 的 project_id = 其 instance.project_id（单一事实来源，避免不一致）。
+--   - 因此「把库归属到哪个项目」不再是独立操作：团队注册实例时已确定项目，
+--     同步发现的新库自动归属该实例（即该项目），无需任何人手动分配/转移。
 create table databases (
   id             bigint generated always as identity primary key,
   instance_id    bigint not null references instances(id),
   name           text not null,
-  project_id     bigint not null references projects(id),
   environment_id bigint references environments(id), -- 为空则继承实例环境
   metadata       jsonb not null default '{}',        -- sync_status / last_sync / labels
   created_at     timestamptz not null default now(),
@@ -211,7 +235,8 @@ create table databases (
   deleted_at     timestamptz
 );
 create unique index databases_uidx on databases(instance_id, name) where deleted_at is null;
-create index on databases(project_id) where deleted_at is null;
+-- 按项目列库走 join：select d.* from databases d join instances i on d.instance_id=i.id
+--   where i.project_id = ? and d.deleted_at is null;
 ```
 
 ### 3.3 元数据目录
@@ -494,16 +519,26 @@ create table settings (
 -- 角色
 insert into roles(key,name,scope,builtin) values
   ('workspaceAdmin','Workspace Admin','workspace',true),
-  ('workspaceDBA','Workspace DBA','workspace',true),
   ('securityAdmin','Security Admin','workspace',true),
   ('workspaceMember','Workspace Member','workspace',true),
   ('projectOwner','Project Owner','project',true),
+  ('projectDBA','Project DBA','project',true),
   ('sqlEditorUser','SQL Editor User','project',true),
   ('sqlEditorReadUser','SQL Editor Read User','project',true);
 
--- 环境
-insert into environments(key,name,rank) values
-  ('prod','Production',30),('test','Test',20),('dev','Development',10);
+-- 环境（protection_level 越大越受保护）
+insert into environments(key,name,protection_level,color,rank) values
+  ('prod', 'Production',  40, '#d4351c', 40),
+  ('stage','Staging',     30, '#f47738', 30),
+  ('test', 'Test',        20, '#1d70b8', 20),
+  ('dev',  'Development', 10, '#00703c', 10);
+
+-- 环境级策略（示例：prod 最严，dev 最宽松）
+insert into environment_policies(environment_id, query_row_limit, query_cost_threshold, export_max_rows, export_require_approval, masking_mode) values
+  ((select id from environments where key='prod'),  1000, '{"soft":100000,"hard":1000000}'::jsonb, 100000, true,  'strict'),
+  ((select id from environments where key='stage'), 5000, '{"soft":500000,"hard":5000000}'::jsonb, 500000, false, 'strict'),
+  ((select id from environments where key='test'),  10000,'{"soft":1000000,"hard":10000000}'::jsonb,1000000,false,'relaxed'),
+  ((select id from environments where key='dev'),   10000,'{"soft":10000000,"hard":100000000}'::jsonb,1000000,false,'relaxed');
 
 -- 分类
 insert into data_classifications(name,level) values
@@ -539,7 +574,8 @@ insert into semantic_types(type,algorithm) values
 
 ## 6. 关键约束与索引策略
 
-- **Project 逻辑隔离（核心）**：`databases.project_id` 是隔离的最小单元。所有数据访问（查询/导出/JIT/审计 parent）在执行前解析目标库的 `project_id`，并校验调用者在**该项目**内的角色绑定（`role_assignments(scope_type='project', scope_id=<project>)`）。未在该项目获得授权 → 默认拒绝，跨 Project 不可见、不可访问。`databases(project_id)` 索引支撑按项目列库。
+- **Project 逻辑隔离（核心）**：实例与库都归属项目（`instances.project_id`；库的项目由实例决定）。所有数据访问（查询/导出/JIT/审计 parent）在执行前解析目标库 → 其实例的 `project_id`，并校验调用者在**该项目**内的角色绑定（`role_assignments(scope_type='project', scope_id=<project>)`）。未在该项目获得授权 → 默认拒绝，跨 Project 不可见、不可访问。`instances(project_id)` 索引支撑按项目列实例/库。
+- **环境标注（必须）**：每个实例必须标注 `environment_id`（NOT NULL）；数据库可显式标注，否则继承其实例的环境（`effective_environment`）。环境是 CEL 条件与 `environment_policies` 的策略维度：访问控制（`resource.environment_id=='prod'`）、脱敏强度、查询/导出护栏均按环境差异化。
 - **每实例恰好 1 个 admin 数据源**：`one_admin_ds` 部分唯一索引。
 - **软删除下的唯一性**：所有带历史名的唯一约束用 `where deleted_at is null` 部分索引。
 - **审计查询性能**：`audit_logs` 按 `(created_at desc)` + `method` / `actor_id` / `resource` 索引；按月分区。
@@ -554,8 +590,8 @@ insert into semantic_types(type,algorithm) values
 | PRD 模块 | 主要表 |
 |---|---|
 | [05 认证/IDP](./05-auth-idp.md) | users, groups, group_members, identity_providers, refresh_tokens, access_tokens |
-| [07 资源管理](./07-resource-management.md) | projects, environments, instances, data_sources, databases, database_schemas, column_annotations |
-| [02 权限与访问](./02-permission-and-access.md) | roles, role_permissions, role_assignments, access_grants, masking_rules, masking_exemptions, semantic_types, data_classifications |
+| [07 资源管理](./07-resource-management.md) | projects, environments, environment_policies, instances, data_sources, databases, database_schemas, column_annotations |
+| [02 权限与访问](./02-permission-and-access.md) | roles, role_permissions, role_assignments, access_grants, masking_rules, masking_exemptions, semantic_types, data_classifications, environment_policies |
 | [03 SQL 查询](./03-sql-query.md) | query_history, worksheets |
 | [04 数据导出](./04-data-export.md) | export_tasks, export_archives |
 | [09 收藏与分享](./09-sql-favorite-share.md) | favorites, share_links |

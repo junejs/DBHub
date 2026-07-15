@@ -11,26 +11,26 @@
 ```
 Workspace（工作区，单组织自部署下为单一固定实例）
   │
-  ├── Environment（环境，软标签：prod/test/dev，支持继承）—— 用于策略选择
+  ├── Environment（一等策略维度：dev/test/stage/prod；实例必标，库可继承/覆盖）—— 驱动访问控制/脱敏/护栏
   │
-  ├── Project（项目 = 产品团队的逻辑隔离边界）── 成员/权限自治
-  │     └── Database（逻辑库；必属且仅属一个 Project）── 隔离的最小单元
-  │           └── Schema（PG 概念；MySQL 无此层）
-  │                 ├── Table → Column (+ Index, ForeignKey, Check, Trigger, Partition...)
-  │                 ├── View / MaterializedView
-  │                 ├── Function / Procedure
-  │                 └── Sequence / ...
-  │
-  └── Instance（实例 = 一个物理 DB 连接：host:port + 引擎 + DataSources）── 平台级共享
-        └── 承载多个 Database（可分属不同 Project）
+  └── Project（项目 = 产品团队的逻辑隔离边界）── 成员/权限自治
+        │
+        └── Instance（实例 = 一个物理 DB 连接：host:port + 引擎 + DataSources）── 归属该项目，由项目团队管理
+              └── Database（逻辑库；项目归属由其 Instance 决定）
+                    └── Schema（PG 概念；MySQL 无此层）
+                          ├── Table → Column (+ Index, ForeignKey, Check, Trigger, Partition...)
+                          ├── View / MaterializedView
+                          ├── Function / Procedure
+                          └── Sequence / ...
 ```
 
 关键点：
-- **Project 是逻辑隔离边界**（产品团队）：每个 Database 必属且仅属一个 Project；权限与成员在 Project 内自治；**跨 Project 默认隔离**（见 [02 §2.4](./02-permission-and-access.md)）。
-- **Instance 是平台级共享资源**，不属于任何 Project；一个 Instance 可同时承载**多个 Project** 的 Database（团队共用一台库服务器，但各自的库互相隔离）。
+- **Instance 归属 Project**（产品团队）：实例与库都在项目内，由项目角色（`projectOwner` / `projectDBA`）管理，**无需平台级管理员**。同一物理库服务器若被多团队使用，按团队分别注册为各自项目下的实例。
+- **Database 的项目归属由其实例决定**——因此「把库归属到哪个项目」不再是独立操作：团队注册实例时已确定项目，同步发现的新库自动归属该实例（即该项目）。
+- **Project 是逻辑隔离边界**：跨 Project 默认隔离（见 [02 §2.4](./02-permission-and-access.md)），Project A 的成员看不到也访问不了 Project B 的实例与库。
 - **Instance 与 Database 是持久化的一等资源**（关系表行）。
 - **Schema / Table / Column 不是独立行**，而是作为嵌套元数据结构（`DatabaseSchemaMetadata`）整体存储 + 缓存。
-- **Environment = 软标签**（可挂在 Instance 或 Database 上，Database 未设则继承 Instance 的）。
+- **Environment = 一等策略维度（重要）**：每个 Instance **必须标注** environment（dev/test/stage/prod 等）；Database 可显式覆盖，否则继承其实例的环境（`effective_environment`）。环境不只是展示标签，而是**驱动访问控制（CEL `resource.environment_id`）、脱敏强度、查询/导出护栏**的策略维度，由 `environment_policies` 表按环境差异化配置（见 [02 §3.2](./02-permission-and-access.md)、[10 environment_policies](./10-data-model.md)）。环境的增删与策略配置由 `securityAdmin`/`workspaceAdmin` 管理（平台级），实例上的标注由项目角色填写。
 
 ---
 
@@ -38,6 +38,7 @@ Workspace（工作区，单组织自部署下为单一固定实例）
 
 ```
 Instance {
+  project          // 归属项目（必填，团队自治范围）
   title            // 显示名
   engine           // 引擎：POSTGRES/MYSQL/ORACLE/REDSHIFT/CLICKHOUSE/...
   engine_version   // 发现的版本（输出）
@@ -65,7 +66,7 @@ Instance {
 ```
 Database {
   name              // instances/{i}/databases/{d}
-  project           // 归属项目
+  project           // 归属项目（= 其 instance.project_id，输出，只读）
   environment       // 显式环境标签（可空）
   effective_environment // 继承后的有效环境（输出）
   instance_resource // 所属实例快照（输出）
@@ -76,8 +77,8 @@ Database {
 }
 ```
 
-- 复合主键 `(instance, database)`；外键到 Instance 与 Project。
-- 新发现的库自动归属到创建实例时指定的 `initial_database_project`（默认项目兜底）。
+- 复合主键 `(instance, database)`；外键到 Instance（项目归属经 Instance 决定，不在 Database 上冗余）。
+- **库的项目归属由其实例决定**：同步在实例上发现的新库，自动归属该实例所在的项目——无需 `initial_database_project`、无需默认项目兜底、无需手动分配。
 
 ---
 
@@ -140,22 +141,24 @@ ColumnMetadata → name, position, type, nullable, default, comment, is_identity
 
 | 操作 | 说明 | 角色 |
 |---|---|---|
-| 注册实例 | 填写引擎、连接、ADMIN/RO 数据源、环境、初始项目 | workspaceDBA |
-| 测试连接 | `validate_only` 不落库，仅验证连通 | workspaceDBA |
-| 更新/删除实例 | 含数据源增删改（RO 可独立增删；ADMIN 随实例） | workspaceDBA |
-| 数据源密码轮换 | 支持；旧密码失效 | workspaceDBA |
-| 手动同步 | 触发实例/库同步 | workspaceDBA / projectOwner |
-| 库归属调整 | 将库移到其他 Project（影响权限） | workspaceAdmin |
-| 环境标签 | 挂在实例或库上 | workspaceDBA |
-| Catalog 标注 | 为列设置 semantic_type/classification/labels | securityAdmin / DBA |
+| 注册实例 | 在项目内填写引擎、连接、ADMIN/RO 数据源、环境 | projectOwner / projectDBA |
+| 测试连接 | `validate_only` 不落库，仅验证连通 | projectOwner / projectDBA |
+| 更新/删除实例 | 含数据源增删改（RO 可独立增删；ADMIN 随实例） | projectOwner / projectDBA |
+| 数据源密码轮换 | 支持；旧密码失效 | projectOwner / projectDBA |
+| 手动同步 | 触发实例/库同步 | projectOwner / projectDBA |
+| 库发现→归属 | 新发现的库**自动归属该实例所在项目**，无需手动分配 | （自动） |
+| 实例迁移项目 | 把实例连同其库迁移到另一项目（影响权限，需审计） | workspaceAdmin |
+| 环境标签 | 挂在实例或库上 | projectOwner / projectDBA |
+| Catalog 标注 | 为列设置 semantic_type/classification/labels | projectDBA（语义类型）；分类由 securityAdmin 定 |
 | 查看结构 | 浏览 schema/table/column 定义、DDL | 授权用户 |
 
 ---
 
 ## 7. 可见性与展示
 
-- **资源树**：按 **Project**（团队隔离边界）→ Database → Schema → Table/View → Column 层级展示；用户只能看到自己所属 Project 下的库（跨 Project 默认不可见，见 [02 §2.4](./02-permission-and-access.md)）。Instance 作为平台资源在「实例管理」页单独管理。
-- 仅展示用户有访问权的库（Project 成员关系 + IAM 过滤）。
+- **资源树**：按 **Project**（团队隔离边界）→ Instance → Database → Schema → Table/View → Column 层级展示；用户只能看到自己所属 Project 下的实例与库（跨 Project 默认不可见，见 [02 §2.4](./02-permission-and-access.md)）。
+- **环境色标**：实例与库旁边显示环境色标（`environments.color`，如 prod 红、dev 绿），便于一眼区分；查询工作台顶部也标注当前库的 effective environment。
+- 仅展示用户有访问权的实例/库（Project 成员关系 + IAM 过滤）。
 - 表详情：列定义、索引、外键、行数/大小、DDL、数据预览（受权限/脱敏）。
 - 支持结构搜索（按表名/列名）。
 

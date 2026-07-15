@@ -34,16 +34,16 @@
 
 | 层级 | 角色 | 定位 | 关键权限 |
 |---|---|---|---|
-| Workspace | `workspaceAdmin` | 系统管理员 | 全部权限（含 IAM、设置、IdP、订阅） |
-| Workspace | `workspaceDBA` | DBA | 实例/库/策略/连接管理、元数据同步；**不含**用户管理与脱敏明文查看 |
-| Workspace | `securityAdmin` | 安全管理员（**职责分离**） | 审计查看、数据分类、脱敏规则、JIT 审批；**不含**连接凭据与 DBA 权限 |
+| Workspace | `workspaceAdmin` | 平台管理员 | 平台级：项目管理（建/删 project）、环境、IdP、全局设置、成员；可见全部项目 |
+| Workspace | `securityAdmin` | 安全管理员（**职责分离**） | 审计查看、数据分类、脱敏规则/豁免、JIT 审批；**不含**连接凭据 |
 | Workspace | `workspaceMember` | 普通成员 | 浏览、申请权限（JIT）、查询自身历史 |
-| Project | `projectOwner` | 项目所有者 | 项目内全部数据权限 + 项目 IAM 管理 |
+| Project | `projectOwner` | 项目所有者 | 项目治理：项目 IAM 管理 + 项目内一切操作；含实例/库管理 |
+| Project | `projectDBA` | 项目 DBA | **项目内实例/数据源/库管理、元数据同步、Catalog 标注**；不含脱敏明文查看、不含项目 IAM 管理 |
 | Project | `sqlEditorUser` | SQL 编辑者（读写） | `bb.sql.select/ddl/dml`（注：本期以查询为主；DDL/DML 属变更管理，不在本期范围） |
 | Project | `sqlEditorReadUser` | SQL 只读者 | `bb.sql.select/explain/info` |
 | Project | `projectViewer` | 项目只读者 | 浏览库表 schema，不可查询数据 |
 
-> 默认核心角色：`workspaceAdmin` / `workspaceDBA` / `securityAdmin` / `workspaceMember` / `projectOwner` / `sqlEditorReadUser` / `sqlEditorUser`。
+> 实例/库的日常管理下放到 **Project 级**（由 `projectOwner` / `projectDBA` 在项目内自治），不再需要平台级 DBA。`workspaceDBA` 角色因此**不再保留**——平台只保留 `workspaceAdmin`（治理）与 `securityAdmin`（安全/合规）。
 
 ### 2.2 权限命名与分类
 
@@ -54,7 +54,7 @@
 | SQL 执行 | `db.sql.select / dml / ddl / explain / info` |
 | 数据库/Schema | `db.databases.get / getSchema / list / sync / update` |
 | Catalog 标注 | `db.databaseCatalogs.get / update`（配置脱敏语义类型） |
-| 实例管理 | `db.instances.create / update / delete / sync` |
+| 实例管理（项目内） | `db.instances.create / update / delete / sync`（项目级，由 projectOwner / projectDBA 执行） |
 | 权限管理 | `db.projects.getIamPolicy / setIamPolicy` |
 | 审计 | `db.auditLogs.search / export` |
 | 脱敏策略 | `db.policies.{MaskingRule, MaskingExemption}.{get,update}` |
@@ -68,13 +68,14 @@
 
 > 公司按**产品团队**划分，每个团队在自己的 **Project** 内管理自己的数据库、成员与权限。**Project 是平台的一等逻辑隔离单元。**
 
-- **资源归属**：每个**数据库**必属且仅属一个 Project（`databases.project_id`）。实例（Instance）是平台级共享资源——一个实例可同时承载多个 Project 的数据库。
+- **资源归属**：**实例（Instance）与数据库（Database）都归属且仅归属一个 Project**（`instances.project_id`；库的项目由其实例决定）。公司数据库实例不跨团队共享——同一物理服务器若被多团队使用，分别按团队注册为各自项目下的实例。
+- **团队自治**：实例/库/数据源/同步由项目内角色（`projectOwner` / `projectDBA`）管理，**无需平台级管理员介入**。
 - **成员制**：用户通过在 Project 上获得角色而成为该 Project 的成员（即「项目角色绑定 = 成员关系」）。一个用户可属于多个 Project（跨团队人员）。
-- **默认跨 Project 隔离（Default Deny）**：用户对 Project A 的数据库没有任何访问权，除非他被授予了 Project A 的角色（或工作区级跨项目角色）。查询/导出/JIT 在执行前会解析目标库所属 Project，并强制校验调用者在**该 Project** 内的访问权。
-- **可见性隔离**：用户能看到的 Project 列表 = 他持有角色的 Project（+ 工作区角色可见全部）。Project A 的成员在资源树/工作台里看不到 Project B 的库。
+- **默认跨 Project 隔离（Default Deny）**：用户对 Project A 的实例/库没有任何访问权，除非他被授予了 Project A 的角色（或 `workspaceAdmin`）。查询/导出/JIT 在执行前会解析目标库所属 Project，并强制校验调用者在**该 Project** 内的访问权。
+- **可见性隔离**：用户能看到的 Project 列表 = 他持有角色的 Project（+ `workspaceAdmin`/`securityAdmin` 可见全部）。Project A 的成员在资源树/工作台里看不到 Project B 的实例与库。
 - **两层角色作用域**：
-  - **Project 角色**（`projectOwner` / `sqlEditorUser` / `sqlEditorReadUser` / 自定义）：仅在所属 Project 内生效，是该 Project 数据访问权的来源。
-  - **Workspace 角色**（`workspaceAdmin` / `workspaceDBA` / `securityAdmin`）：跨 Project 的平台级权限（管理实例、IdP、审计、全局脱敏策略等）。
+  - **Project 角色**（`projectOwner` / `projectDBA` / `sqlEditorUser` / `sqlEditorReadUser` / 自定义）：仅在所属 Project 内生效，是该 Project 实例/数据访问权的来源。
+  - **Workspace 角色**（`workspaceAdmin` / `securityAdmin`）：跨 Project 的平台级权限（建项目、IdP、审计、全局脱敏策略、数据分类）。
 
 ---
 
@@ -97,29 +98,45 @@ IamPolicy {
 - **members** 类型：`user:{email}`、`group:{email}`、`serviceAccount:{email}`、`allUsers`。
 - **两层策略**：每个 Workspace 一份工作区策略；**每个 Project 一份项目策略**——这是各团队自治设置自己成员与权限的载体。
 - **判定规则**：
-  - Workspace 角色授予平台级权限（跨 Project）。
-  - Project 资源的数据访问权（查询/导出等）**要求调用者在该 Project 内被放行**——这是 §2.4 跨 Project 隔离的执行点。
+  - `workspaceAdmin` / `securityAdmin` 拥有跨 Project 的平台级权限。
+  - Project 资源（实例/库）的访问与管理权**要求调用者在该 Project 内被放行**——这是 §2.4 跨 Project 隔离的执行点。
   - CEL 条件在 Project 内进一步把权限收敛到具体库/表。
 
-### 3.2 CEL 条件可用的资源变量
+### 3.2 环境作为访问控制维度（重要）
+
+环境（dev/test/stage/prod）不仅是标签，更是**访问授权的关键维度**。典型治理：开发/测试库对较多成员开放，**生产库默认收紧**——通过 CEL 条件把对 prod 的访问单独授予少数人。
+
+```
+// 普通分析师只能访问 dev/test/stage，禁止 prod
+role=sqlEditorReadUser, members=[group:analysts],
+condition="resource.environment_id != 'prod'"
+
+// DBA 才能访问 prod（且仅读）
+role=sqlEditorReadUser, members=[group:prod-dbas],
+condition="resource.environment_id == 'prod'"
+```
+
+环境还是**脱敏强度、查询/导出护栏**的差异化维度（见 [03 §5.6](./03-sql-query.md)、[04](./04-data-export.md)），由 `environment_policies` 表集中配置（prod 最严、dev 最宽松）。
+
+### 3.3 CEL 条件可用的资源变量
 
 | 变量 | 含义 | 典型用途 |
 |---|---|---|
-| `resource.environment_id` | 环境（prod/test） | 限制只能查测试库 |
+| `resource.environment_id` | 环境（dev/test/stage/prod） | **按环境隔离访问**（如禁 prod） |
 | `resource.instance_id` | 实例 ID | 限定到某实例 |
 | `resource.database` | 数据库名 | 限定到某库 |
 | `resource.schema_name` | schema | 限定到某 schema |
 | `resource.table_name` | 表名 | 限定到某表 |
 | `request.time` | 当前时间 | 时间窗授权（如仅工作时间） |
 
-### 3.3 库级 / 表级授权示例
+### 3.4 库级 / 表级 / 环境级授权示例
 
 ```
 // Alice 可读 prod 环境 orders_db 全部表
 role=sqlEditorReadUser, members=[user:alice], condition="resource.environment_id=='prod' && resource.database=='orders_db'"
 
-// Analysts 组只能读 customers、orders 两张表
-role=sqlEditorReadUser, members=[group:analysts], condition="resource.database=='orders_db' && (resource.table_name=='customers' || resource.table_name=='orders')"
+// Analysts 组只能读 customers、orders 两张表（任意非 prod 环境）
+role=sqlEditorReadUser, members=[group:analysts], condition="resource.environment_id!='prod' && resource.database=='orders_db' && (resource.table_name=='customers' || resource.table_name=='orders')"
 ```
 
 ---
@@ -245,4 +262,4 @@ AccessGrant {
 | 谓词列保护 | ✅ | ✅ 沿用 |
 | JIT 临时访问 | ✅ | ✅ 沿用 |
 | 行级权限 | ❌ 无 | ❌ 不在本期范围（同 Bytebase 取舍；未来优先走原生 RLS） |
-| 职责分离（DBA vs Security） | 部分 | ✅ **强化**，显式 `securityAdmin` 与 `workspaceDBA` 分离 |
+| 职责分离（DBA vs Security） | 部分 | ✅ **强化**：`securityAdmin`（审计/脱敏/分类）与 `projectDBA`（实例/库管理）分离 |
