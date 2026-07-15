@@ -27,6 +27,7 @@
 | [10-data-model.md](./10-data-model.md) | 数据模型 | 平台元数据库表结构（简洁可扩展，PostgreSQL DDL） |
 | [11-decisions.md](./11-decisions.md) | 决策记录 | 所有关键产品/架构决策及理由（交付团队必读） |
 | [12-api-contract.md](./12-api-contract.md) | API 契约 | 资源命名、通用约定、错误码目录、各服务 proto（前后端并行依据） |
+| [13-sequences.md](./13-sequences.md) | 核心时序图 | 登录、查询执行、异步导出、JIT 四条端到端流程（Mermaid） |
 
 ---
 
