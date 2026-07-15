@@ -113,18 +113,22 @@ ColumnMetadata → name, position, type, nullable, default, comment, is_identity
 
 ## 5. 元数据发现与同步
 
-**模型：后台定时同步 + 缓存 + 手动刷新**（非实时反射，避免每次查询都打业务库）。
+**模型：后台定时同步（15min）+ 手动触发 + 懒刷新**（D19，非实时反射，避免每次查询都打业务库）。
+
+- **定时同步**：实例循环每 15min 遍历实例，反射库结构。
+- **手动触发**：`projectOwner`/`projectDBA` 可对实例/库手动 Sync。
+- **懒刷新**：查询/补全读缓存；若发现缓存过期（超过 TTL 或被标记 stale），**后台异步触发一次刷新，当前请求先用旧缓存返回**——不阻塞用户、不打业务库同步链路。
 
 ### 同步器（Schema Syncer）
 - 两个循环：
-  - 实例循环（如 15min）：遍历实例，发现库列表/版本/角色。
-  - 数据库循环（如 10s）：处理待同步库队列。
+  - 实例循环（15min）：遍历实例，发现库列表/版本/角色。
+  - 数据库循环（10s）：处理待同步库队列（含懒刷新触发的项）。
 - 单库同步流程（`doSyncDatabaseSchema`）：
   1. 用 ADMIN 数据源打开驱动。
   2. `driver.SyncDBSchema()` 反射结构 → `DatabaseSchemaMetadata`。
   3. `driver.Dump()` 生成 SDL/DDL。
   4. 写 `db_schema`（metadata/raw_dump/config）+ 更新库 `last_sync_time`/`sync_status`。
-  5. 可选写快照（`sync_history`）用于结构变更对比。
+  5. 可选写快照（`sync_history`，见 [10](./10-data-model.md)）用于结构变更对比。
 - 失败：`sync_status=FAILED` + `sync_error`。
 
 ### 缓存

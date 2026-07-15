@@ -123,7 +123,7 @@ Driver 接口（每个引擎实现）
 | 平台元数据库 | **PostgreSQL** | JSONB 存储半结构化策略；支持表达式索引加速审计查询 |
 | 元数据缓存 | 进程内 LRU + 可选 Redis | schema 读多写少，缓存命中率极高 |
 | 异步任务 | 内置 Runner（goroutine 调度） | 不引入 Kafka，保持单机简单 |
-| 密钥管理 | 本地 KMS / 外部 Secret Manager（Vault / AWS SM / 阿里云 KMS） | 数据库连接密码、导出密码不应明文入库 |
+| 密钥管理 | 应用层 AES-256-GCM + 主密钥（环境变量/KMS）；可选外部 Secret Manager（Vault / AWS SM / 阿里云 KMS） | 连接凭据不入明文；`secret_ref` 非空时走外部密钥（D25） |
 | CEL 求值 | `google/cel-go` | IAM 条件、脱敏规则统一用 CEL |
 | 身份集成 | 内置 OIDC/LDAP 插件 | 见 [05-auth-idp.md](./05-auth-idp.md) |
 

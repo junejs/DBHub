@@ -37,7 +37,7 @@
 | Workspace | `workspaceAdmin` | 平台管理员 | 平台级：项目管理（建/删 project）、环境、IdP、全局设置、成员；可见全部项目 |
 | Workspace | `securityAdmin` | 安全管理员（**职责分离**） | 审计查看、数据分类、脱敏规则/豁免、JIT 审批；**不含**连接凭据 |
 | Workspace | `workspaceMember` | 普通成员 | 浏览、申请权限（JIT）、查询自身历史 |
-| Project | `projectOwner` | 项目所有者 | 项目治理：项目 IAM 管理 + 项目内一切操作；含实例/库管理 |
+| Project | `projectOwner` | 项目所有者 | 项目治理：项目 IAM 管理 + 项目内一切操作；含实例/库管理；**可读本项目审计**（D26） |
 | Project | `projectDBA` | 项目 DBA | **项目内实例/数据源/库管理、元数据同步、Catalog 标注**；不含脱敏明文查看、不含项目 IAM 管理 |
 | Project | `sqlEditorUser` | SQL 编辑者（读写） | `bb.sql.select/ddl/dml`（注：本期以查询为主；DDL/DML 属变更管理，不在本期范围） |
 | Project | `sqlEditorReadUser` | SQL 只读者 | `bb.sql.select/explain/info` |

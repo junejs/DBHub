@@ -88,6 +88,10 @@ CREATE TABLE audit_log (
 
 ### 5.1 SearchAuditLogs
 - `POST /v1/{parent}/auditLogs:search`，权限 `db.auditLogs.search`。
+- **读权限范围（D26）**：
+  - `securityAdmin` / `workspaceAdmin`：可查全部审计（任意 parent）。
+  - `projectOwner`：仅可查**自己所属项目**的审计（parent=`projects/{自己的项目}`，服务端强制按项目过滤，无法越界）。
+  - 审计含 PII 字面量（D5），读权限严格收紧；**查看审计行为本身也被审计**。
 - **CEL 过滤**，支持变量：`method`、`user`、`resource`、`severity`（`==`）、`create_time`（`>=` / `<=`，RFC3339）、`&&` / `||`。
 - 分页（page_size + page_token，上限如 5000）。
 - 默认按 `create_time DESC`。

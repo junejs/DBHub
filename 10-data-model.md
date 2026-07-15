@@ -212,8 +212,10 @@ create table data_sources (
   port         int,
   database     text,                                 -- 默认库
   username     text not null,
-  secret_ref   text,                                 -- 外部 Secret Manager 引用（推荐）；为空则用 connection.encrypted
-  connection   jsonb not null default '{}',          -- ssl / ssh 隧道 / 引擎特有项（sid、replica_set...）
+  secret_ref   text,                                 -- 外部 Secret Manager 引用（非空时优先用外部密钥，见 D25）
+  connection   jsonb not null default '{}',          -- 含 password_enc(AES-256-GCM 密文)、ssl、ssh 隧道、引擎特有项
+  -- 凭据加密（D25）：DB 不存明文。secret_ref 非空 → 走外部 Secret Manager；
+  --   否则 connection.password_enc 用 AES-256-GCM 加密，主密钥由环境变量/KMS 注入（不入库）。
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now()
 );
@@ -251,6 +253,16 @@ create table database_schemas (
   sync_error    text,
   synced_at     timestamptz not null default now()
 );
+
+-- 同步历史（每次成功的 schema 快照留一份，用于结构变更对比；按时间清理）
+create table sync_history (
+  id            bigint generated always as identity primary key,
+  database_id   bigint not null references databases(id),
+  schema_json   jsonb not null,
+  raw_ddl       text,
+  synced_at     timestamptz not null default now()
+);
+create index on sync_history(database_id, synced_at desc);
 
 -- 列级标注（脱敏语义类型、分类、标签）—— 规范化、可查询
 create table column_annotations (
@@ -501,7 +513,26 @@ create index on audit_logs(resource);
 
 > 审计只 INSERT、不 UPDATE/DELETE（仅身份重命名等维护路径重写 `actor_*`）。按月分区便于归档与过期清理。SQL 字面量按决策原样留存于 `request`。
 
-### 3.10 设置
+### 3.10 通知（站内通知中心，D21）
+
+```sql
+create table notifications (
+  id          bigint generated always as identity primary key,
+  user_id     bigint not null references users(id),       -- 接收人
+  type        text not null,                              -- export_done | jit_pending | jit_resolved | system
+  title       text not null,
+  body        text,
+  link        text,                                       -- 点击跳转的资源/页面
+  ref_id      bigint,                                     -- 关联对象 id（如 export_task_id / access_grant_id）
+  read_at     timestamptz,                                -- null = 未读
+  created_at  timestamptz not null default now()
+);
+create index on notifications(user_id, read_at, created_at desc);
+```
+
+> 触发点：异步导出完成（→ 发起人 `export_done`）、JIT 申请提交（→ 审批人 `jit_pending`）、JIT 审批结果（→ 申请人 `jit_resolved`）。MVP 仅站内，不做邮件（D21）。
+
+### 3.11 设置
 
 ```sql
 create table settings (
@@ -596,4 +627,4 @@ insert into semantic_types(type,algorithm) values
 | [04 数据导出](./04-data-export.md) | export_tasks, export_archives |
 | [09 收藏与分享](./09-sql-favorite-share.md) | favorites, share_links |
 | [06 审计日志](./06-audit-log.md) | audit_logs |
-| 横切 | settings |
+| 横切 | settings, notifications（站内通知，D21） |
