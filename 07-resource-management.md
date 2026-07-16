@@ -43,7 +43,7 @@ Instance {
   engine           // 引擎：POSTGRES/MYSQL/ORACLE/REDSHIFT/CLICKHOUSE/...
   engine_version   // 发现的版本（输出）
   activation       // 是否启用
-  environment      // 环境标签
+  environment      // 环境（一等策略维度，必填）
   data_sources[]   // 连接配置：1 个 ADMIN + 0/1 个 READ_ONLY
   sync_interval    // 自动同步周期
   sync_databases[] // 限定同步的库；空=全部
@@ -65,9 +65,9 @@ Instance {
 
 ```
 Database {
-  name              // instances/{i}/databases/{d}
+  name              // projects/{p}/instances/{i}/databases/{d}
   project           // 归属项目（= 其 instance.project_id，输出，只读）
-  environment       // 显式环境标签（可空）
+  environment       // 环境（可空，则继承实例环境）
   effective_environment // 继承后的有效环境（输出）
   instance_resource // 所属实例快照（输出）
   sync_status       // OK / FAILED
@@ -152,7 +152,7 @@ ColumnMetadata → name, position, type, nullable, default, comment, is_identity
 | 手动同步 | 触发实例/库同步 | projectOwner / projectDBA |
 | 库发现→归属 | 新发现的库**自动归属该实例所在项目**，无需手动分配 | （自动） |
 | 实例迁移项目 | 把实例连同其库迁移到另一项目（影响权限，需审计） | workspaceAdmin |
-| 环境标签 | 挂在实例或库上 | projectOwner / projectDBA |
+| 环境标注 | 实例必须标注（库可继承/覆盖）；环境的定义与策略由 securityAdmin/workspaceAdmin 管 | projectOwner / projectDBA（标注实例） |
 | Catalog 标注 | 为列设置 semantic_type/classification/labels | projectDBA（语义类型）；分类由 securityAdmin 定 |
 | 查看结构 | 浏览 schema/table/column 定义、DDL | 授权用户 |
 

@@ -146,7 +146,7 @@ Driver 接口（每个引擎实现）
 用户在编辑器执行 SELECT
   → 客户端调用 SQL.Query RPC
   → 认证拦截器：校验 JWT/会话
-  → ACL 拦截器：检查粗粒度权限 bb.sql.select（IAM 绑定匹配）
+  → ACL 拦截器：检查粗粒度权限 db.sql.select（IAM 绑定匹配）
   → SQL Service:
       1. resolveDataSource → 取只读连接
       2. SplitMultiSQL → 逐语句

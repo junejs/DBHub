@@ -26,7 +26,7 @@
   identity_providers
 
 资源组织
-  projects            environments(tag)
+  projects            environments(策略维度)
        │
        ▼
   instances ──< data_sources          （实例归属项目，由项目团队管理）
@@ -555,7 +555,8 @@ insert into roles(key,name,scope,builtin) values
   ('projectOwner','Project Owner','project',true),
   ('projectDBA','Project DBA','project',true),
   ('sqlEditorUser','SQL Editor User','project',true),
-  ('sqlEditorReadUser','SQL Editor Read User','project',true);
+  ('sqlEditorReadUser','SQL Editor Read User','project',true),
+  ('projectViewer','Project Viewer','project',true);
 
 -- 环境（protection_level 越大越受保护）
 insert into environments(key,name,protection_level,color,rank) values

@@ -38,17 +38,7 @@ AuditLog {
 }
 ```
 
-存储表（平台 PG）：
-```sql
-CREATE TABLE audit_log (
-  resource_id text PRIMARY KEY,
-  workspace   text NOT NULL REFERENCES workspace,
-  created_at  timestamptz NOT NULL DEFAULT now(),
-  payload     jsonb NOT NULL DEFAULT '{}'
-);
--- 索引：(workspace, created_at DESC)；以及对 payload 关键字的表达式索引
---   (method / user / resource / parent)
-```
+存储表见 [10 §3.9 audit_logs](./10-data-model.md)：列式、按月分区、**无 workspace/tenant 列**（D1），scope 由 `scope_type`/`scope_id` 表达。关键字段：`method`、`actor_id`/`actor_email`、`scope_type`/`scope_id`、`resource`、`severity`、`status_code`/`status_message`、`latency_ms`、`request`/`response`（脱敏后）、`ip`、`user_agent`、`service_data`。
 
 ---
 
@@ -58,8 +48,8 @@ CREATE TABLE audit_log (
 
 | 类别 | 事件 |
 |---|---|
-| **认证** | Login、Logout、Signup、ExchangeToken、SendEmailLoginCode、密码重置 |
-| **数据访问** | SQL.Query、SQL.Export（流式按消息对审计）、AdminExecute |
+| **认证** | Login、Logout、Refresh、RequestPasswordReset、ResetPassword（对齐 [12 AuthService](./12-api-contract.md)）；启用邮箱验证码登录时含 SendEmailLoginCode |
+| **数据访问** | SQL.Query、SQL.Export（流式按消息对审计）；AdminExecute（启用时） |
 | **权限变更** | SetIamPolicy（workspace/project，带 PolicyDelta）、CreateAccessGrant、ActivateAccessGrant、RevokeAccessGrant |
 | **用户/身份** | CreateUser/UpdateUser/DeleteUser、组增删、ServiceAccount 增删、IDP 增删改 |
 | **资源管理** | CreateInstance/Update/Delete、AddDataSource/Update/Remove、UpdateDatabase、Catalog 标注更新 |
@@ -75,7 +65,7 @@ CREATE TABLE audit_log (
 2. **声明驱动**：是否审计由 RPC 的 `audit` 注解决定（在认证阶段读入上下文）。
 3. **脱敏**：写入前对 request/response 做字段级脱敏——密码、token、连接凭据（SSL/SSH key）、查询结果行、导出内容、登录 OTP/MFA 码 → 替换为空/掩码。
    - **SQL 语句按字面量原样记录（已确认决策）**：审计保留完整 SQL 文本，**不做字面量参数化/脱敏**（即 `WHERE ssn='110...'` 中的敏感值会被原样留存），以完整支持事后回溯与取证。
-   - ⚠️ **残余风险与控制**：因字面量可能含 PII，审计日志本身即为敏感对象，必须：(a) 严格限制 `db.auditLogs.search/export` 权限仅授予安全管理员/合规角色；(b) 审计访问行为本身也被审计；(c) 按保留期到期清理或转冷存储。
+   - ⚠️ **残余风险与控制**：因字面量可能含 PII，审计日志本身即为敏感对象。读权限按 **D26** 收紧：`securityAdmin`/`workspaceAdmin` 可读全部、`projectOwner` 可读本项目（服务端强制按 scope 过滤）；审计访问行为本身也被审计；按保留期到期清理或转冷存储。
 4. **操作者解析**：从上下文取用户；登录类 RPC 特殊处理（从请求/MFA token 解析邮箱）。
 5. **作用域（parent）解析**：从资源名解析所属 project/workspace；登录类回退到工作区。
 6. **逐 parent 写一条**：若一次操作涉及多个 project，每个 project 各写一条审计。
@@ -119,7 +109,7 @@ method == "/dbh.WorkspaceService/SetIamPolicy" || method == "/dbh.ProjectService
 | 维度 | 策略 |
 |---|---|
 | **不可变** | 应用层只有 INSERT，无 UPDATE/DELETE（仅在身份重命名等维护路径下重写 `user` 引用）。生产建议进一步加 PG 侧防护（行保护、WORM 存储、独立审计库账号） |
-| **保留期** | 按计划/合规配置：默认团队 7 天可见、企业无限；通过查询期 `created_at >= cutoff` 过滤实现，老数据物理留存（或迁移冷存储） |
+| **保留期** | 单一可配置保留期（无多租户分级，D1）；查询期 `created_at >= cutoff` 过滤，老数据物理留存（或迁移冷存储） |
 | **防篡改** | 推荐生产部署：审计库独立、仅追加权限；可选对审计做哈希链/签名，或导出到外部不可变存储（S3 Object Lock） |
 
 ---

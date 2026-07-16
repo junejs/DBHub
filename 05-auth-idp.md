@@ -70,9 +70,8 @@ FieldMapping {        // 把 IdP 返回字段映射到平台用户属性
 5. **MFA 二次验证**：若用户开启 TOTP 且工作区要求 2FA，第一步返回短期 `mfa_temp_token`，第二步提交 OTP/恢复码完成登录。
 
 ### 登录后处理
-- **用户匹配/创建（JIT Provisioning）**：IdP 返回的 `identifier`（邮箱）匹配已有用户则登录；不存在则按策略自动创建（仅限允许的邮箱域，且满足席位限制）。
+- **用户匹配/创建（JIT Provisioning）**：IdP 返回的 `identifier`（邮箱）匹配已有用户则登录；不存在则按策略自动创建（仅限允许的邮箱域）。单组织自部署，无席位/多租户概念（D1）。
 - **组映射**：IdP 的 `groups` claim 与平台组按邮箱/名称匹配，自动加入/移除，IAM 缓存随之刷新。
-- **工作区解析**：解析用户应登录的工作区（提示 / 上次登录 / 成员关系）。
 - **发 token**：签发 JWT access token（默认 1h）+ 不透明 refresh token（默认 7d，SHA256 存储）。
 - **Cookie/Body**：Web 端 HTTP-only Cookie；API 端返回 token。
 
@@ -82,13 +81,12 @@ FieldMapping {        // 把 IdP 返回字段映射到平台用户属性
 
 | 令牌 | 说明 |
 |---|---|
-| **Access Token (JWT)** | HS256 签名，携带 `workspace_id`；默认 1h；`Authorization: Bearer` 或 `access-token` Cookie |
+| **Access Token (JWT)** | HS256 签名；默认 1h；`Authorization: Bearer` 或 `access-token` Cookie |
 | **Refresh Token** | 32 字节随机，SHA256 存储；旋转刷新（非滑动续期，保留原始绝对过期） |
 | **MFA Temp Token** | 短期（5 min），登录两步之间的桥接 |
 | **Service Account Token** | 给自动化用的长期 token（API token） |
 
 - **登出**：删除 refresh token、清 Cookie。
-- **切换工作区**：发新 token + 触发可能 MFA + 轮换 refresh token。
 - **改密/重置密码**：吊销该用户所有 refresh token。
 - **限频防爆破**：密码 10 次/10min、MFA 5 次/5min 失败锁定（参考审计日志计数）。
 

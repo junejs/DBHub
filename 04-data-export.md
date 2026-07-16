@@ -29,7 +29,7 @@
 
 ### 2.3 导出来源
 - **来自工作台 SQL**：用户在工作台填入导出 SQL（一条或多条），选择格式与密码。
-- **来自保存的查询（Worksheet/Sheet）**：选定已保存 SQL 发起导出。
+- **来自保存的查询（Worksheet）**：选定已保存 SQL 发起导出。
 - **来自审批单（可选增强）**：审批通过的批量导出任务，可走 ADMIN 连接、按审批条件去脱敏。
 
 ### 2.4 导出任务生命周期（异步）
@@ -77,7 +77,7 @@ CREATED → RUNNING → SUCCEEDED → DOWNLOADABLE → EXPIRED
 
 ### 4.1 导出请求主要字段
 ```
-name             // instances/{i}/databases/{d}（同步）或 projects/{p}（任务）
+name             // projects/{p}/instances/{i}/databases/{d}（同步）或 projects/{p}（任务）
 statement        // 导出 SQL
 format           // CSV/JSON/SQL/XLSX
 password         // ZIP 密码

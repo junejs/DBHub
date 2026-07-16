@@ -25,7 +25,7 @@ sequenceDiagram
     A->>IDP: ExchangeToken(code) → access_token
     A->>IDP: UserInfo(token) → {identifier, groups}
     A->>S: 按 email 查 user
-    alt 新用户(且邮箱域允许 + 席位未满)
+    alt 新用户(且邮箱域允许)
         A->>S: JIT 创建 user(source=oidc, 随机密码)
         A->>S: 加入 workspace/project IAM
     else 已存在
@@ -44,7 +44,7 @@ sequenceDiagram
     F-->>U: 进入工作台
 ```
 
-**失败分支:** 凭据错误 `AUTH_INVALID_CREDENTIALS`;邮箱域不允许/席位满 `PERMISSION_DENIED`;MFA 码错 `AUTH_MFA_INVALID`(超限锁定)。
+**失败分支:** 凭据错误 `AUTH_INVALID_CREDENTIALS`;邮箱域不允许 `PERMISSION_DENIED`;MFA 码错 `AUTH_MFA_INVALID`(超限锁定)。
 
 ---
 
@@ -210,7 +210,7 @@ sequenceDiagram
 
 | 流程 | 关键决策/依据 |
 |---|---|
-| 登录 | OIDC/LDAP(D4 待补引擎无关)、MFA、JIT 开户、共享账号(D2 不影响登录) |
+| 登录 | OIDC/LDAP、MFA、JIT 开户、共享账号(D2 不影响登录) |
 | 查询 | 项目隔离(D15/D16)、环境护栏(D17/D8)、谓词列、脱敏、字面量审计(D5) |
 | 导出 | 强制异步阈值(D22)、存储抽象(D20)、站内通知(D21)、产物 24h |
 | JIT | 临时去脱敏、审批通知、强审计(D5) |

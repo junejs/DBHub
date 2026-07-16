@@ -12,11 +12,11 @@
 
 ```
 第 1 层：粗粒度 RBAC（功能权限）
-   └─ 角色(Role) = 权限(Permission) 集合，如 bb.sql.select / bb.instances.create
+   └─ 角色(Role) = 权限(Permission) 集合，如 db.sql.select / db.instances.create
    └─ 通过 IAM 绑定把角色授予 成员(Member)
 
 第 2 层：数据级授权（IAM 绑定 + CEL 条件）
-   └─ 把 bb.sql.select 等数据权限，用 CEL 条件限定到 具体库/表/环境
+   └─ 把 db.sql.select 等数据权限，用 CEL 条件限定到 具体库/表/环境
    └─ 这是「库级 / 表级」授权的主要手段
 
 第 3 层：数据内容级控制
@@ -39,8 +39,8 @@
 | Workspace | `workspaceMember` | 普通成员 | 浏览、申请权限（JIT）、查询自身历史 |
 | Project | `projectOwner` | 项目所有者 | 项目治理：项目 IAM 管理 + 项目内一切操作；含实例/库管理；**可读本项目审计**（D26） |
 | Project | `projectDBA` | 项目 DBA | **项目内实例/数据源/库管理、元数据同步、Catalog 标注**；不含脱敏明文查看、不含项目 IAM 管理 |
-| Project | `sqlEditorUser` | SQL 编辑者（读写） | `bb.sql.select/ddl/dml`（注：本期以查询为主；DDL/DML 属变更管理，不在本期范围） |
-| Project | `sqlEditorReadUser` | SQL 只读者 | `bb.sql.select/explain/info` |
+| Project | `sqlEditorUser` | SQL 编辑者（读写） | `db.sql.select/ddl/dml`（注：本期以查询为主；DDL/DML 属变更管理，不在本期范围） |
+| Project | `sqlEditorReadUser` | SQL 只读者 | `db.sql.select/explain/info` |
 | Project | `projectViewer` | 项目只读者 | 浏览库表 schema，不可查询数据 |
 
 > 实例/库的日常管理下放到 **Project 级**（由 `projectOwner` / `projectDBA` 在项目内自治），不再需要平台级 DBA。`workspaceDBA` 角色因此**不再保留**——平台只保留 `workspaceAdmin`（治理）与 `securityAdmin`（安全/合规）。
@@ -116,7 +116,7 @@ role=sqlEditorReadUser, members=[group:prod-dbas],
 condition="resource.environment_id == 'prod'"
 ```
 
-环境还是**脱敏强度、查询/导出护栏**的差异化维度（见 [03 §5.6](./03-sql-query.md)、[04](./04-data-export.md)），由 `environment_policies` 表集中配置（prod 最严、dev 最宽松）。
+环境还是**脱敏强度、查询/导出护栏**的差异化维度（见 [03 §5.1](./03-sql-query.md)、[04](./04-data-export.md)），由 `environment_policies` 表集中配置（prod 最严、dev 最宽松）。
 
 ### 3.3 CEL 条件可用的资源变量
 
@@ -217,7 +217,7 @@ role=sqlEditorReadUser, members=[group:analysts], condition="resource.environmen
 ```
 AccessGrant {
   state: PENDING → ACTIVE → REVOKED
-  targets: ["instances/{i}/databases/{d}"]   // 目标库
+  targets: ["projects/{p}/instances/{i}/databases/{d}"]   // 目标库
   query: "SELECT ... WHERE id=123"           // 精确语句（可选，绑定到具体 SQL）
   unmask: true/false                          // 是否去脱敏
   export: true/false                          // 是否允许导出

@@ -95,7 +95,7 @@ Parser 插件层（按引擎）
 
 | RPC | 路径 | 权限 | 审计 | 说明 |
 |---|---|---|---|---|
-| `Query` | `POST /v1/{name=instances/*/databases/*}:query` | `db.sql.select` | ✅ | 执行只读查询 |
+| `Query` | `POST /v1/{name=projects/*/instances/*/databases/*}:query` | `db.sql.select` | ✅ | 执行只读查询 |
 | `AdminExecute` | `GET /v1:adminExecute`（流） | `db.sql.admin` | ✅ | 管理连接执行（高权限，慎开；可选增强） |
 | `DiffMetadata` | schema diff | 公开工具 | ❌ | 两个 catalog 的结构差异 |
 | `SearchQueryHistories` | `db.sql.*`（CUSTOM） | ❌ | 自身历史 |
@@ -104,7 +104,7 @@ Parser 插件层（按引擎）
 
 ### 4.1 `QueryRequest` 主要字段
 ```
-name          // instances/{i}/databases/{d}
+name          // projects/{p}/instances/{i}/databases/{d}
 statement     // SQL 文本
 limit         // 行数上限
 data_source_id // 可选，指定数据源
@@ -141,11 +141,11 @@ applied_access_grant // 若经 JIT 授权
 | 超时 | 单语句超时（如 30s），可按引擎/策略配置 |
 | 重试与停止 | 默认遇错停止；支持语句级重试 |
 | 并发限制 | 单用户/单库并发查询数限制 |
-| **查询成本护栏** | 见 §5.6，执行前 EXPLAIN 估算成本/行数，超阈值拦截或告警 |
+| **查询成本护栏** | 见 §5.1，执行前 EXPLAIN 估算成本/行数，超阈值拦截或告警 |
 
 ---
 
-## 5.6 查询成本护栏（Query Cost Guardrail）
+### 5.1 查询成本护栏（Query Cost Guardrail）
 
 > 防止"一条全表扫描拖垮业务库"。这是本系统相对 Bytebase 的差异化能力。
 
