@@ -31,6 +31,7 @@
 | [14-edge-cases.md](./14-edge-cases.md) | 边界条件与异常处理 | 删除级联、并发、SQL×脱敏、分页、断连恢复、会话边界、审计容错 |
 | [15-ui.md](./15-ui.md) | UI 页面清单与线框 | 页面清单、核心页 ASCII 线框、交互状态约定（前端依据） |
 | [16-ops.md](./16-ops.md) | 部署/安全/容量/测试 | 配置项、安全参数数值、容量假设、可观测、备份、测试策略、上线清单 |
+| [17-bytebase-tech-stack.md](./17-bytebase-tech-stack.md) | Bytebase 技术选型（参考） | Bytebase 实际技术栈清单 + 对我们系统的借鉴取舍 |
 
 ---
 
