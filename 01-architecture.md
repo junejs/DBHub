@@ -9,7 +9,7 @@
 │                        客户端（Web UI）                          │
 │   SQL 工作台（Monaco + LSP over WS） · 资源浏览 · 导出 · 审计   │
 └──────────────────────────┬──────────────────────────────────────┘
-                           │ HTTPS / gRPC-Web / WebSocket(LSP)
+                           │ HTTPS (HTTP/JSON) / WebSocket(LSP)
 ┌──────────────────────────▼──────────────────────────────────────┐
 │                       API 网关层（Gateway）                      │
 │   认证拦截器 · 审计拦截器 · ACL 拦截器 · 限流 · 会话             │
@@ -50,7 +50,7 @@
 | **解析** | Parser / Completion | 多语句切分、LSP 自动补全（PostgreSQL） |
 | **执行** | Task Runner | 异步任务调度（导出、元数据同步、清理） |
 | **元数据** | Schema Syncer | 周期性从实例同步 schema 到平台元数据库 |
-| **驱动** | DB Driver / IDP | PostgreSQL 驱动（pgx）；IdP 按协议实现（OIDC/LDAP） |
+| **驱动** | DB Driver / IDP | PostgreSQL 原生驱动（具体库由实现语言自选）；IdP 按协议实现（OIDC/LDAP） |
 
 ## 3. 关键设计决策
 
@@ -59,16 +59,16 @@
 - 用户查询/导出的数据来自**外部业务数据库**（PostgreSQL/MySQL/Oracle…），两者物理隔离。
 - 平台绝不把业务数据持久化到自身（导出产物除外，且有保留期）。
 
-### 3.2 API 定义驱动（Schema-First / Proto）
-- 推荐使用 Protobuf/gRPC + gRPC-Web（或 Connect-RPC）定义所有 API。
-- 每个 RPC 通过**注解**声明：
-  - `permission = "dbh.sql.select"`：所需权限（驱动 ACL 拦截器）
-  - `audit = true`：是否审计（驱动审计拦截器）
-- 好处：权限与审计声明与业务代码解耦，无法被遗漏或绕过。
+### 3.2 API 定义驱动（Schema-First / OpenAPI）
+- 所有 API 以 **OpenAPI 3（HTTP/JSON）** 定义为唯一事实来源（见 [12](./12-api-contract.md)），**语言/框架无关**。
+- 每个操作通过 **OpenAPI 扩展**声明：
+  - `x-requires-permission = "db.sql.select"`：所需权限（驱动 ACL 横切层）
+  - `x-audit = true`：是否审计（驱动审计横切层）
+- 好处：权限与审计声明与业务代码解耦，无法被遗漏或绕过；扩展是语言中立的元数据，由各实现的横切层（中间件 / 拦截器 / 过滤器）在请求处理前强制。
 
 ### 3.3 数据库驱动（PostgreSQL 原生）
 
-v1 只实现 PostgreSQL，驱动按原生模块实现（基于 `pgx`），不预设多引擎插件抽象。驱动职责：
+v1 只实现 PostgreSQL，驱动按原生模块实现（PostgreSQL 协议驱动，具体库由实现语言自选），不预设多引擎插件抽象。驱动职责：
 
 ```
 PostgreSQL 驱动
@@ -82,8 +82,8 @@ PostgreSQL 驱动
 - 未来接入第二个引擎时，再把这些方法抽取为 `Driver` 接口——届时凭两个数据点抽象，更准确（不为尚不存在的引擎提前抽象）。
 
 ### 3.4 SQL 解析与补全
-- PostgreSQL 的 `parser`：多语句切分（`SplitMultiSQL`）、语法诊断（`Diagnose`）、自动补全（`Completion`）。
-- 自动补全通过 **LSP over WebSocket** 暴露给前端 Monaco 编辑器（详见 [03-sql-query.md](./03-sql-query.md)）。
+- PostgreSQL 的 SQL 解析器：多语句切分、语法诊断、自动补全（实现自选成熟的 PG 解析器）。
+- 自动补全通过 **LSP over WebSocket** 暴露给前端编辑器（详见 [03-sql-query.md](./03-sql-query.md)、[12 §6.15](./12-api-contract.md)）。
 
 ### 3.5 读写连接分离与连接身份模型（DataSource）
 
@@ -105,14 +105,14 @@ PostgreSQL 驱动
 
 | 关注点 | 推荐方案 | 备选 / 说明 |
 |---|---|---|
-| 后端语言 | **Go** | 与 Bytebase 一致，生态成熟，并发模型适合 DB 连接与 LSP；备选 Java/Rust |
-| API 协议 | **gRPC + Protobuf（Connect-RPC）** | 注解驱动权限/审计；备选 REST + OpenAPI |
+| 后端语言 | **不限**（Go / Java / Rust / Python / Node 均可） | 与 API 契约解耦；按团队技术栈与 PG 驱动成熟度自行选定 |
+| API 协议 | **HTTP/JSON + OpenAPI 3**（唯一事实来源） | 权限/审计以 `x-` 扩展声明；客户端/服务端桩可由任意语言生成（见 [12](./12-api-contract.md)） |
 | 前端框架 | **Vue 3 + TypeScript** 或 React | Bytebase 为 Vue→React 迁移中，二者皆可 |
 | SQL 编辑器 | **Monaco Editor** | 行业标准，支持自定义语言、LSP |
 | 自动补全协议 | **LSP over WebSocket** | 真实语言服务器协议，补全质量高 |
 | 平台元数据库 | **PostgreSQL** | JSONB 存储半结构化策略；支持表达式索引加速审计查询 |
 | 元数据缓存 | 进程内 LRU + 可选 Redis | schema 读多写少，缓存命中率极高 |
-| 异步任务 | 内置 Runner（goroutine 调度） | 不引入 Kafka，保持单机简单 |
+| 异步任务 | 内置 Runner（进程内任务调度） | 不引入 Kafka，保持单机简单 |
 | 密钥管理 | 应用层 AES-256-GCM + 主密钥（环境变量/KMS）；可选外部 Secret Manager（Vault / AWS SM / 阿里云 KMS） | 连接凭据不入明文；`secret_ref` 非空时走外部密钥（D25） |
 | 身份集成 | 内置 OIDC/LDAP | 见 [05-auth-idp.md](./05-auth-idp.md) |
 
@@ -133,16 +133,16 @@ PostgreSQL 驱动
 
 ```
 用户在编辑器执行 SELECT
-  → 客户端调用 SQL.Query RPC
-  → 认证拦截器：校验 JWT/会话
-  → ACL 拦截器：检查粗粒度权限 db.sql.select（IAM 绑定匹配 + 项目隔离）
+  → 客户端调用 POST .../databases/{d}:query 操作
+  → 认证横切层：校验 JWT/会话
+  → ACL 横切层：检查粗粒度权限 db.sql.select（IAM 绑定匹配 + 项目隔离）
   → SQL Service:
       1. resolveDataSource → 取只读连接
-      2. SplitMultiSQL → 逐语句
+      2. 多语句切分 → 逐语句
       3. 细粒度权限校验（结构化条件，库/表级 + 环境）
       4. 行数/超时上限校验
-      5. 调用 Driver.QueryConn 执行（只读，语句超时保护）
+      5. 调用驱动执行查询（只读，语句超时保护）
       6. 写查询历史
-  → 审计拦截器：记录 SQL.Query（含语句摘要、库表、耗时、状态）
+  → 审计横切层：记录 :query 操作（含语句摘要、库表、耗时、状态）
   → 返回结果给前端
 ```

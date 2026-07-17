@@ -73,7 +73,7 @@ Database {
   sync_status       // OK / FAILED
   sync_error
   labels
-  // 元数据见 db_schema
+  // 元数据见 database_schemas 表（10 §3.3）
 }
 ```
 
@@ -84,14 +84,17 @@ Database {
 
 ## 4. Schema / Table / Column 元数据
 
-以嵌套结构存储于 `db_schema`：
+以嵌套结构存储于 `database_schemas` 表（与 [10 §3.3](./10-data-model.md) 一致）：
 
 ```
-db_schema {
-  instance, db_name,
-  metadata   // DatabaseSchemaMetadata（发现的结构树）
-  raw_dump   // SDL/DDL 文本
-  config     // DatabaseConfig（平台侧标注：分类/语义类型/标签）
+database_schemas {              // 表
+  database_id,                  // FK → databases(id)
+  schema_json,                  // 结构树（DatabaseSchemaMetadata，见下）
+  raw_ddl,                      // SDL/DDL 文本
+  sync_status,                  // ok | failed
+  sync_error,
+  synced_at
+  // config（DatabaseConfig：平台侧列级标注 semantic_type/classification/labels）属脱敏能力，延后 v2，v1 不存
 }
 
 DatabaseSchemaMetadata
@@ -127,7 +130,7 @@ ColumnMetadata → name, position, type, nullable, default, comment, is_identity
   1. 用 ADMIN 数据源打开驱动。
   2. `driver.SyncDBSchema()` 反射结构 → `DatabaseSchemaMetadata`。
   3. `driver.Dump()` 生成 SDL/DDL。
-  4. 写 `db_schema`（metadata/raw_dump/config）+ 更新库 `last_sync_time`/`sync_status`。
+  4. 写 `database_schemas`（schema_json/raw_ddl/sync_status/...）+ 更新库 `last_sync_time`/`sync_status`。
   5. 可选写快照（`sync_history`，见 [10](./10-data-model.md)）用于结构变更对比。
 - 失败：`sync_status=FAILED` + `sync_error`。
 

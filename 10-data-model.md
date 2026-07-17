@@ -66,7 +66,7 @@ create table users (
   kind            text not null default 'user',      -- user | service
   email           citext not null,
   name            text not null,
-  status          text not null default 'active',    -- active | disabled | deleted
+  status          text not null default 'active',    -- active | disabled（删除即 disabled，见 D28；deleted_at 仅物理清理用）
   source          text not null default 'local',     -- local | oidc | ldap | oauth2 | scim
   password_hash   text,                              -- bcrypt；SSO-only 用户为 null
   mfa_secret_enc  bytea,                             -- TOTP secret（应用层加密）
@@ -104,7 +104,9 @@ create table identity_providers (
   title          text,
   type           text not null,                      -- oidc | oauth2 | ldap
   domain         text,                               -- 邮箱域，用于登录路由
-  config         jsonb not null default '{}',        -- 协议特定（issuer/client_id 或 host/bind_dn/...）
+  config         jsonb not null default '{}',        -- 协议特定【非敏感】参数（issuer/client_id/host/base_dn/...）
+  secret_ref     text,                                -- 外部 Secret Manager 引用（非空时优先，见 D25）；与 data_sources 对齐
+  secrets_enc    bytea,                               -- AES-256-GCM 密文（client_secret/bind_password）；secret_ref 非空时为 null
   field_mapping  jsonb not null default '{}',        -- {identifier, display_name, phone, groups}
   enabled        boolean not null default true,
   created_at     timestamptz not null default now(),
@@ -122,6 +124,17 @@ create table refresh_tokens (
   user_agent  text
 );
 create index on refresh_tokens(user_id);
+
+-- 登录锁定态（同步写、同步判锁定；**不依赖** fail-open 的审计日志，见 11 D30）
+--   密码 10/10min、MFA 5/5min 失败锁定（见 05 §5、14-F）。
+create table login_attempts (
+  identifier     text not null,             -- 归一化邮箱(lower)或 ip
+  channel        text not null,             -- password | mfa
+  fail_count     int not null default 0,    -- 当前窗口失败次数
+  last_fail_at   timestamptz,               -- 最近一次失败时间
+  locked_until   timestamptz,               -- 非空=锁定中
+  primary key (identifier, channel)
+);
 
 -- 服务账号 / 个人访问令牌（PAT）延后到 v2：届时新增 access_tokens 表。
 ```
@@ -167,7 +180,8 @@ create table environment_policies (
 create table instances (
   id                    bigint generated always as identity primary key,
   project_id            bigint not null references projects(id),  -- 实例所属项目（团队）
-  name                  text not null unique,
+  key                   text not null,                 -- 资源名段(slug)，如 'pg-prod'；映射 API 路径 {instance}
+  name                  text not null,                 -- 展示名；映射 API Instance.title
   engine                text not null,               -- 'postgresql'（text，可扩展）
   engine_version        text,
   environment_id        bigint not null references environments(id),  -- 必填：每个实例必须标注环境
@@ -179,7 +193,7 @@ create table instances (
   updated_at            timestamptz not null default now(),
   deleted_at            timestamptz
 );
-create unique index instances_name_uidx on instances(name) where deleted_at is null;
+create unique index instances_key_uidx on instances(project_id, key) where deleted_at is null;
 create index on instances(project_id) where deleted_at is null;
 create index on instances(environment_id) where deleted_at is null;
 -- 注：实例归属项目且必须标注环境。同一物理库服务器若被多团队使用，按团队分别注册为不同实例（各自项目下、各自凭据），
@@ -189,8 +203,7 @@ create index on instances(environment_id) where deleted_at is null;
 create table data_sources (
   id           bigint generated always as identity primary key,
   instance_id  bigint not null references instances(id),
-  role         text not null,                        -- admin | readonly
-  name         text,
+  role         text not null,                        -- admin | readonly（资源名段 {dataSource} 即此角色）
   host         text not null,
   port         int,
   database     text,                                 -- 默认库
@@ -325,6 +338,7 @@ create table worksheets (
   created_by   bigint not null references users(id),
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now(),
+  etag         text not null default '',             -- 乐观锁；每次 Update 刷新（见 12 §3.5、14-B）
   deleted_at   timestamptz
 );
 create index on worksheets(project_id) where deleted_at is null;
@@ -349,6 +363,7 @@ create table export_tasks (
   id                      bigint generated always as identity primary key,
   state                   text not null,             -- created | running | succeeded | failed | expired
   user_id                 bigint not null references users(id),
+  project_id              bigint not null references projects(id),  -- 冗余：支撑项目级列表，避免删库后 join 断链
   database_id             bigint not null references databases(id),
   statement               text not null,
   format                  text not null,             -- csv | json（v1）
@@ -360,6 +375,7 @@ create table export_tasks (
   completed_at            timestamptz
 );
 create index on export_tasks(user_id, created_at desc);
+create index on export_tasks(project_id, created_at desc);
 
 -- 导出产物（ZIP 由用户密码加密；密码不存储）
 create table export_archives (
@@ -405,6 +421,7 @@ create index on audit_logs(created_at desc);
 create index on audit_logs(method);
 create index on audit_logs(actor_id);
 create index on audit_logs(resource);
+create index on audit_logs(scope_type, scope_id, created_at desc);  -- projectOwner 按项目 scope 查询（D26）
 ```
 
 > 审计只 INSERT、不 UPDATE/DELETE（仅身份重命名等维护路径重写 `actor_*`）。按月分区便于归档与过期清理。SQL 字面量按决策原样留存于 `request`。
@@ -491,11 +508,14 @@ insert into environment_policies(environment_id, query_row_limit, export_max_row
 
 - **Project 逻辑隔离（核心）**：实例与库都归属项目（`instances.project_id`；库的项目由实例决定）。所有数据访问（查询/导出/审计 parent）在执行前解析目标库 → 其实例的 `project_id`，并校验调用者在**该项目**内的角色绑定（`role_assignments(scope_type='project', scope_id=<project>)`）。未在该项目获得授权 → 默认拒绝，跨 Project 不可见、不可访问。`instances(project_id)` 索引支撑按项目列实例/库。
 - **环境标注（必须）**：每个实例必须标注 `environment_id`（NOT NULL）；数据库可显式标注，否则继承其实例的环境（`effective_environment`）。环境是结构化授权条件与 `environment_policies` 的策略维度：访问控制（按环境限定）、查询/导出护栏均按环境差异化。
-- **每实例恰好 1 个 admin 数据源**：`one_admin_ds` 部分唯一索引。
+- **每实例恰好 1 个 admin 数据源**：`one_admin_ds` 部分唯一索引。数据源以角色（`admin`/`readonly`）为资源名段。
+- **实例 slug 唯一性**：`instances(project_id, key)` 部分唯一索引（项目内唯一，跨项目可重名）；`name` 为展示名。
 - **软删除下的唯一性**：所有带历史名的唯一约束用 `where deleted_at is null` 部分索引。
-- **审计查询性能**：`audit_logs` 按 `(created_at desc)` + `method` / `actor_id` / `resource` 索引；按月分区。
+- **审计查询性能**：`audit_logs` 按 `(created_at desc)` + `method` / `actor_id` / `resource` + `(scope_type, scope_id, created_at desc)`（项目 scope 查询，D26）索引；按月分区。
 - **权限判定热路径**：`role_assignments(member_kind, member_id)` 索引支撑「取该用户/组的所有绑定」。
-- **导出清理**：`export_archives(expires_at)` 支撑过期扫描删除。
+- **并发编辑**：`worksheets.etag` 支撑乐观锁（`PATCH` 带 `If-Match`，不匹配 → 409）。
+- **登录锁定**：`login_attempts(identifier, channel)` 同步记录失败计数/锁定态；**不依赖** fail-open 的审计日志（D30）。
+- **导出清理**：`export_archives(expires_at)` 支撑过期扫描删除；`export_tasks(project_id, created_at desc)` 支撑项目级列表。
 
 ---
 
@@ -503,7 +523,7 @@ insert into environment_policies(environment_id, query_row_limit, export_max_row
 
 | PRD 模块 | 主要表 |
 |---|---|
-| [05 认证/IDP](./05-auth-idp.md) | users, groups, group_members, identity_providers, refresh_tokens |
+| [05 认证/IDP](./05-auth-idp.md) | users, groups, group_members, identity_providers, refresh_tokens, login_attempts |
 | [07 资源管理](./07-resource-management.md) | projects, environments, environment_policies, instances, data_sources, databases, database_schemas |
 | [02 权限与访问](./02-permission-and-access.md) | roles, role_permissions, role_assignments, environment_policies |
 | [03 SQL 查询](./03-sql-query.md) | query_history, worksheets |

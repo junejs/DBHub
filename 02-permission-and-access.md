@@ -37,7 +37,7 @@
 | Workspace | `workspaceMember` | 普通成员 | 浏览、查询自身历史 |
 | Project | `projectOwner` | 项目所有者 | 项目治理：项目 IAM 管理 + 项目内一切操作；含实例/库管理；**可读本项目审计**（D26） |
 | Project | `projectDBA` | 项目 DBA | **项目内实例/数据源/库管理、元数据同步**；不含项目 IAM 管理 |
-| Project | `sqlEditorUser` | SQL 编辑者（读写） | `db.sql.select/ddl/dml`（注：本期以查询为主；DDL/DML 属变更管理，不在本期范围） |
+| Project | `sqlEditorUser` | SQL 编辑者（读写） | `db.sql.select/ddl/dml`（**v1 占位、暂不授予**：DDL/DML 属变更管理，不在 v1 范围；v1 实际只读路径用 `sqlEditorReadUser`，此角色随变更管理在 v2 启用） |
 | Project | `sqlEditorReadUser` | SQL 只读者 | `db.sql.select/explain/info` |
 | Project | `projectViewer` | 项目只读者 | 浏览库表 schema，不可查询数据 |
 
@@ -50,6 +50,7 @@
 | 类别 | 示例权限 |
 |---|---|
 | SQL 执行 | `db.sql.select / dml / ddl / explain / info` |
+| 导出 | `db.exports.create`（异步导出任务）；同步导出走 `db.sql.select` |
 | 数据库/Schema | `db.databases.get / getSchema / list / sync / update` |
 | 实例管理（项目内） | `db.instances.create / update / delete / sync`（项目级，由 projectOwner / projectDBA 执行） |
 | 权限管理 | `db.projects.getIamPolicy / setIamPolicy` |

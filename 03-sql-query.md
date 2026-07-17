@@ -61,17 +61,17 @@ SQL 查询是系统最高频场景。本文档定义查询工作台的完整需�
 Monaco Editor (前端)
    │  textDocument/completion (JSON-RPC over WS)
    ▼
-LSP Server (后端 /lsp)
-   │  调用 PostgreSQL parser.Completion
+LSP Server (后端 /v1/lsp, WebSocket)
+   │  调用 PostgreSQL SQL 解析器补全接口
    ▼
-Parser（PostgreSQL）
+PG SQL 解析器（实现自选，语言无关）
    │  从元数据缓存取 schema（表/列/视图/函数）
    ▼
 平台元数据库（同步后的 DatabaseSchemaMetadata）
 ```
 
-- 前端 Monaco 作为 LSP 客户端（基于 `vscode-languageclient` / `monaco-languageclient`），通过 WebSocket 连后端 LSP 服务。
-- 后端 LSP 服务调用 PostgreSQL 的 `parser/completion` 实现。
+- 前端编辑器作为 LSP 客户端（如 Monaco + languageclient），通过 WebSocket 连后端 LSP 服务。
+- 后端 LSP 服务调用 PostgreSQL 的 SQL 解析补全实现（解析器库由实现语言自选，协议本身为语言中立的 JSON-RPC over WS，见 [12 §6.15](./12-api-contract.md)）。
 - 补全候选来源：**同步后的真实 catalog**（表、列、视图、函数、关键字）。
 
 ### 3.3 补全候选与排序
@@ -81,7 +81,7 @@ Parser（PostgreSQL）
 - 节流：hover 300ms、completion 200ms；触发字符 `. , ( 空格` 或显式调用。
 
 ### 3.4 引擎支持
-- **当前版本实现 PostgreSQL** 的 parser completion。未来接入其他引擎时再扩展其补全实现。
+- **当前版本实现 PostgreSQL** 的 SQL 解析补全。未来接入其他引擎时再扩展其补全实现。
 
 ### 3.5 其他 LSP 能力（可选/后续）
 - `textDocument/hover`：列/表的文档与类型提示。
@@ -92,36 +92,43 @@ Parser（PostgreSQL）
 
 ## 4. API 设计（关键 RPC）
 
-| RPC | 路径 | 权限 | 审计 | 说明 |
+| 操作 | 路径 | 鉴权 | 审计 | 说明 |
 |---|---|---|---|---|
-| `Query` | `POST /v1/{name=projects/*/instances/*/databases/*}:query` | `db.sql.select` | ✅ | 执行只读查询 |
-| `AdminExecute` | `GET /v1:adminExecute`（流） | `db.sql.admin` | ✅ | 管理连接执行（高权限，慎开；可选增强） |
+| `Query` | `POST /v1/{name=projects/*/instances/*/databases/*}:query` | `db.sql.select` | ✅ | 执行只读查询（unary + 游标分页） |
+| `Export`（同步） | `POST .../:export` | `db.sql.select` | ✅ | 同步导出（≤1 万行），返回 ZIP 字节流 |
+| `AdminExecute` | （可选增强/v2） | `db.sql.admin` | ✅ | 管理连接执行（高权限，慎开） |
 | `DiffMetadata` | schema diff | 公开工具 | ❌ | 两个 catalog 的结构差异 |
-| `SearchQueryHistories` | `db.sql.*`（CUSTOM） | ❌ | 自身历史 |
-| `GetQueryHistory` | 同上 | ❌ | 单条历史 |
-| Worksheet CRUD | `db.worksheets.*` | 部分 | 保存的查询 |
+| `SearchQueryHistories` | `GET /v1/queryHistories:search` | `auth_method=CUSTOM` | ❌ | 自身历史 |
+| `GetQueryHistory` | 同上 | `auth_method=CUSTOM` | ❌ | 单条历史 |
+| Worksheet CRUD | `POST/.../worksheets` | `auth_method=CUSTOM` | 部分 | 保存的查询 |
+
+> 路径、字段与扩展以 [12 API 契约](./12-api-contract.md)（OpenAPI）为准。
 
 ### 4.1 `QueryRequest` 主要字段
 ```
-name          // projects/{p}/instances/{i}/databases/{d}
-statement     // SQL 文本
-limit         // 行数上限
+name           // projects/{p}/instances/{i}/databases/{d}
+statement      // SQL 文本（多语句分号分隔；带 page_token 时忽略）
+limit          // 行数上限
 data_source_id // 可选，指定数据源
-explain       // 是否 EXPLAIN
-schema        // 可选，search_path / current schema
-query_option  // 引擎相关选项
+explain        // 是否 EXPLAIN
+schema         // 可选，search_path / current schema
+page_token     // 可选，翻某结果集下一页（语句序号+游标已编码入 token）
 ```
 
-### 4.2 `QueryResult` 主要字段
+### 4.2 `QueryResponse` / `QueryResult` 主要字段
 ```
-column_names / column_type_names
-rows[]             // 每行带类型化值（null/bool/int/float/string/bytes/time/struct）
-rows_count
-error              // 引擎错误（结构化）
-detailed_error     // 细分：SyntaxError(位置)/PermissionDenied/CommandError(DDL/DML/非只读)
-latency
-statement
-engine_messages    // NOTICE/PRINT 等
+QueryResponse:
+  results[]          // 多语句：每条语句一个 QueryResult，按序
+QueryResult:
+  column_names / column_type_names
+  rows[]             // 每行带类型化值（null/bool/int/float/string/bytes/time/struct）
+  rows_count
+  next_page_token    // 该结果集下一页游标；无则省略
+  error              // 引擎错误（结构化）
+  detailed_error     // 细分：SyntaxError(位置)/PermissionDenied/CommandError(DDL/DML/非只读)
+  latency
+  statement
+  engine_messages    // NOTICE/PRINT 等
 ```
 
 ---

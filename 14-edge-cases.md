@@ -55,7 +55,7 @@
 | 分页协议 | **keyset 游标**(非 offset),游标不透明、不可构造;保证翻页稳定 |
 | 行数上限 | 取 `environment_policies.query_row_limit`;超限**截断**并标注"已截断,请导出" |
 | 结果字节上限 | 单结果集字节上限(防 OOM);超限**截断**或引导异步 |
-| 大结果传输 | **流式**(gRPC server-streaming `QueryResult`),前端边收边渲染 |
+| 大结果传输 | **unary + keyset 游标分页**(`QueryResponse.results[].next_page_token`,见 [12 §6.2](./12-api-contract.md));前端翻页时带 token 续取 |
 | 客户端慢/背压 | 服务端限缓冲;超时取消 |
 | 二进制/JSON 列 | 按类型渲染;超大单值截断 |
 | 空结果 / 仅元数据 | 正常返回,rows 为空 |

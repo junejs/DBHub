@@ -9,7 +9,7 @@
 - **MVP：单节点**（D24）：一个应用进程 + 一个平台 PostgreSQL（单实例）。
 - 后续演进：无状态多副本 + 平台 PG 主从 + 对象存储（导出产物）。
 - 交付形态：**docker-compose**（首选）/ 单二进制 / Helm Chart（后续）。
-- 进程模型：HTTP/gRPC + WebSocket(LSP) 同进程；后台 Runner（同步/导出/清理）同进程 goroutine。
+- 进程模型：HTTP/JSON + WebSocket(LSP) 同进程；后台 Runner（同步/导出/清理）同进程（任务调度机制由实现语言自选）。
 
 ### 健康检查
 - `GET /healthz` → liveness（进程存活）。
@@ -22,7 +22,7 @@
 
 | 配置 | 环境变量 | 默认 | 说明 |
 |---|---|---|---|
-| 监听 | `PORT` | 8080 | HTTP/gRPC；LSP 走同端口 WS 升级 |
+| 监听 | `PORT` | 8080 | HTTP/JSON；LSP 走同端口 WS 升级 |
 | 平台 PG DSN | `DB_DSN` | — | `postgres://...` |
 | **主密钥** | `MASTER_KEY` | — | AES-256-GCM 主密钥（base64，32B）；**不入库不入仓** |
 | **JWT 密钥** | `JWT_SECRET` | — | HS256 签名密钥 |
