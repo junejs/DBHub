@@ -28,7 +28,7 @@ AuditLog {
   response        // 响应 JSON（已脱敏；结果行/导出内容等大字段被丢弃）
   status          // google.rpc.Status（成功为 nil）
   latency         // 耗时
-  service_data    // 附加上下文（如 PolicyDelta：权限变更前后差异）
+  service_data    // 附加上下文（如权限变更前后差异）
   request_metadata {
     caller_ip
     caller_supplied_user_agent
@@ -50,10 +50,10 @@ AuditLog {
 |---|---|
 | **认证** | Login、Logout、Refresh、RequestPasswordReset、ResetPassword（对齐 [12 AuthService](./12-api-contract.md)）；启用邮箱验证码登录时含 SendEmailLoginCode |
 | **数据访问** | SQL.Query、SQL.Export（流式按消息对审计）；AdminExecute（启用时） |
-| **权限变更** | SetIamPolicy（workspace/project，带 PolicyDelta）、CreateAccessGrant、ActivateAccessGrant、RevokeAccessGrant |
-| **用户/身份** | CreateUser/UpdateUser/DeleteUser、组增删、ServiceAccount 增删、IDP 增删改 |
-| **资源管理** | CreateInstance/Update/Delete、AddDataSource/Update/Remove、UpdateDatabase、Catalog 标注更新 |
-| **策略** | 脱敏规则/豁免/数据分类 的增删改 |
+| **权限变更** | SetIamPolicy（workspace/project，记录前后差异） |
+| **用户/身份** | CreateUser/UpdateUser/DeleteUser、组增删、IDP 增删改 |
+| **资源管理** | CreateInstance/Update/Delete、AddDataSource/Update/Remove、UpdateDatabase |
+| **策略** | 环境策略（environment_policies）的增删改 |
 | **审计** | SearchAuditLogs、ExportAuditLogs（审计的审计） |
 | **设置** | 关键 Setting 更新（记前值） |
 
@@ -82,7 +82,7 @@ AuditLog {
   - `securityAdmin` / `workspaceAdmin`：可查全部审计（任意 parent）。
   - `projectOwner`：仅可查**自己所属项目**的审计（parent=`projects/{自己的项目}`，服务端强制按项目过滤，无法越界）。
   - 审计含 PII 字面量（D5），读权限严格收紧；**查看审计行为本身也被审计**。
-- **CEL 过滤**，支持变量：`method`、`user`、`resource`、`severity`（`==`）、`create_time`（`>=` / `<=`，RFC3339）、`&&` / `||`。
+- **结构化过滤**（UI 下拉/日期选择，不暴露表达式语言）：操作类型(method)、用户、资源、严重级别、时间范围。
 - 分页（page_size + page_token，上限如 5000）。
 - 默认按 `create_time DESC`。
 
@@ -92,14 +92,8 @@ AuditLog {
 
 ### 5.3 典型查询示例
 ```
-// 某分析师上月所有导出
-method == "/dbh.SQLService/Export"
-  && user == "users:alice@corp.com"
-  && create_time >= "2026-06-01T00:00:00Z"
-  && create_time <= "2026-06-30T23:59:59Z"
-
-// 所有权限变更
-method == "/dbh.WorkspaceService/SetIamPolicy" || method == "/dbh.ProjectService/SetIamPolicy"
+// 某分析师上月所有导出：操作类型=SQL.Export，用户=alice@corp.com，时间=2026-06
+// 所有权限变更：操作类型=SetIamPolicy
 ```
 
 ---
@@ -119,8 +113,8 @@ method == "/dbh.WorkspaceService/SetIamPolicy" || method == "/dbh.ProjectService
 - **method**：便于按操作类型筛选。
 - **resource**：受影响资源（库/表/实例/用户邮箱）。
 - **user**：操作者。
-- **request/response**：脱敏后的请求/响应摘要；查询类只保留列名/语句/错误，丢弃结果行；导出类丢弃内容但保留「是否脱敏/是否经 JIT」。
-- **service_data**：权限变更带 `PolicyDelta`（增删了哪些绑定）；设置更新带前值。
+- **request/response**：脱敏后的请求/响应摘要（密码/token/凭据等敏感字段置空）；查询类只保留列名/语句/错误，丢弃结果行；导出类丢弃内容但保留行数/产物引用。
+- **service_data**：权限变更带前后差异（增删了哪些绑定）；设置更新带前值。
 - **latency / status / ip / ua**：运维与取证所需。
 
 ---
@@ -137,7 +131,7 @@ method == "/dbh.WorkspaceService/SetIamPolicy" || method == "/dbh.ProjectService
 
 - 注解驱动 + 拦截器统一审计，覆盖 §3 事件清单。
 - 完整数据模型 + 脱敏 + 不可取消写入。
-- CEL 查询 + 导出。
+- 结构化查询 + 导出。
 - 保留期策略（默认配置）。
 
 **可选增强（不在本期必须范围）：** 哈希链/签名防篡改、外部不可变存储、SIEM 实时投递（stdout/kafka）、可视化审计看板。

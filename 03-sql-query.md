@@ -9,7 +9,7 @@ SQL 查询是系统最高频场景。本文档定义查询工作台的完整需�
 - 作为分析师，我希望打开工作台，选择数据库，编写 SQL 时能得到表/列/函数的自动补全。
 - 作为分析师，我希望执行查询后快速看到结果，并能分页/翻看。
 - 作为分析师，我希望能查看自己的历史查询，一键重跑。
-- 作为安全管理员，我希望所有查询都受权限/脱敏约束，且全程审计。
+- 作为安全管理员，我希望所有查询都受权限约束，且全程审计。
 
 ---
 
@@ -30,14 +30,14 @@ SQL 查询是系统最高频场景。本文档定义查询工作台的完整需�
 - 结果区：表格展示，支持列类型感知（时间、JSON、二进制等）。
 - **分页**：默认带行数上限（见 §5），支持「加载更多」；大结果引导用户走导出。
 - **多结果集**：多语句时按语句分组展示，各自带状态/耗时/错误。
-- **错误信息**：引擎原始错误结构化（PG 错误码、语法错误位置等），但涉敏感列时脱敏。
+- **错误信息**：引擎原始错误结构化（PG 错误码、语法错误位置等）。
 
 ### 2.4 EXPLAIN
 - 支持 `EXPLAIN` / `EXPLAIN ANALYZE`，按引擎能力展示执行计划（文本/可视化）。
 
 ### 2.5 查询历史
 - 每次查询自动记录：数据库、语句、耗时、错误、时间、创建人。
-- 用户可查看/搜索/重跑自己的历史；按 CEL 过滤（库、语句包含等）。
+- 用户可查看/搜索/重跑自己的历史；按条件过滤（库、语句包含等）。
 - 仅本人可见（auth_method=CUSTOM）。
 
 ### 2.6 保存的查询（Worksheet）
@@ -62,16 +62,16 @@ Monaco Editor (前端)
    │  textDocument/completion (JSON-RPC over WS)
    ▼
 LSP Server (后端 /lsp)
-   │  根据 engine 调用对应 parser.Completion
+   │  调用 PostgreSQL parser.Completion
    ▼
-Parser 插件层（按引擎）
+Parser（PostgreSQL）
    │  从元数据缓存取 schema（表/列/视图/函数）
    ▼
 平台元数据库（同步后的 DatabaseSchemaMetadata）
 ```
 
 - 前端 Monaco 作为 LSP 客户端（基于 `vscode-languageclient` / `monaco-languageclient`），通过 WebSocket 连后端 LSP 服务。
-- 后端 LSP 服务按**引擎**分发到对应 `parser/<engine>/completion` 实现。
+- 后端 LSP 服务调用 PostgreSQL 的 `parser/completion` 实现。
 - 补全候选来源：**同步后的真实 catalog**（表、列、视图、函数、关键字）。
 
 ### 3.3 补全候选与排序
@@ -81,8 +81,7 @@ Parser 插件层（按引擎）
 - 节流：hover 300ms、completion 200ms；触发字符 `. , ( 空格` 或显式调用。
 
 ### 3.4 引擎支持
-- 由能力矩阵 `EngineSupportAutoComplete` 声明。**当前版本实现 PostgreSQL**；架构支持扩展到 MySQL、Oracle、MSSQL、ClickHouse、Snowflake、Redshift 等（新增引擎仅需实现其 parser completion 插件）。
-- 不支持的引擎：编辑器仍可用，但仅关键字补全或关闭补全。
+- **当前版本实现 PostgreSQL** 的 parser completion。未来接入其他引擎时再扩展其补全实现。
 
 ### 3.5 其他 LSP 能力（可选/后续）
 - `textDocument/hover`：列/表的文档与类型提示。
@@ -123,8 +122,6 @@ detailed_error     // 细分：SyntaxError(位置)/PermissionDenied/CommandError
 latency
 statement
 engine_messages    // NOTICE/PRINT 等
-masking_reasons    // 每列脱敏原因（便于前端标注「已脱敏」）
-applied_access_grant // 若经 JIT 授权
 ```
 
 ---
@@ -133,35 +130,26 @@ applied_access_grant // 若经 JIT 授权
 
 | 控制项 | 说明 |
 |---|---|
-| 权限校验 | 粗粒度 `db.sql.select` + 细粒度 CEL（库/表）+ 列脱敏 |
+| 权限校验 | 粗粒度 `db.sql.select` + 细粒度结构化条件（库/表/环境）+ 项目隔离 |
 | 只读强制 | 只读数据源下拒绝 DDL/DML/非只读语句 |
-| 谓词列保护 | 敏感列出现在 WHERE/JOIN 时默认拒绝 |
-| 行数上限 | 单次结果默认上限（如 1000 行），可由策略调整；超过引导导出 |
+| 行数上限 | 单次结果默认上限（如 1000 行），由 `environment_policies.query_row_limit` 决定；超过引导导出 |
 | 结果大小上限 | 单结果集字节上限（防 OOM/滥用） |
-| 超时 | 单语句超时（如 30s），可按引擎/策略配置 |
+| 超时 | 单语句超时（默认 30s），保护业务库 |
 | 重试与停止 | 默认遇错停止；支持语句级重试 |
 | 并发限制 | 单用户/单库并发查询数限制 |
-| **查询成本护栏** | 见 §5.1，执行前 EXPLAIN 估算成本/行数，超阈值拦截或告警 |
 
 ---
 
-### 5.1 查询成本护栏（Query Cost Guardrail）
+### 5.1 查询保护（v1）
 
-> 防止"一条全表扫描拖垮业务库"。这是本系统相对 Bytebase 的差异化能力。
+> v1 不做 EXPLAIN 估算的成本护栏（PostgreSQL cost 为任意单位，作为拦截阈值既会误杀也会漏放）。改以更可靠的兜底保护业务库：
 
-**机制：**
-1. SELECT 执行前，先对语句跑 `EXPLAIN`（PostgreSQL 可用 `EXPLAIN`，无需 ANALYZE 避免实际执行开销）。
-2. 从执行计划估算**预估行数（rows）** 与**成本（cost）**。
-3. 与阈值比较——阈值取自目标库所属环境的 `environment_policies.query_cost_threshold`：
-   - **硬阈值**（如 prod cost > 1e6）：**拦截**，拒绝执行并提示"查询开销过大，请加过滤条件或走导出"。
-   - **软阈值**（如 prod cost > 1e5）：放行但**告警**（结果区标注、记录到审计）。
-4. 同一条查询在 prod 会被严格限制、在 dev 则宽松放行（阈值按环境差异化，见 [10 environment_policies](./10-data-model.md)）。同时行数上限也由 `environment_policies.query_row_limit` 决定。
+- **语句超时**（默认 30s）：慢查询被数据库直接中断。
+- **行数上限**（`environment_policies.query_row_limit`，prod 最严）：结果超限截断并引导走导出。
+- **结果字节上限**：防 OOM。
+- **并发限制 + 只读连接**。
 
-**设计要点：**
-- EXPLAIN 本身有开销，仅在 SELECT 且未命中结果缓存时触发；可配置开关。
-- 对无法 EXPLAIN 的语句（DDL/非 SELECT）跳过。
-- 拦截决策与原因写入审计。
-- 与行数上限/超时叠加，形成"事前估算拦截 + 事中行数/超时兜底"的双重防护。
+三者叠加即可覆盖绝大多数"拖垮业务库"的场景。EXPLAIN 成本护栏延后到有明确需求时再评估。
 
 ---
 
@@ -177,11 +165,11 @@ applied_access_grant // 若经 JIT 授权
 ## 7. 功能范围
 
 - 库选择、SQL 编辑、多语句执行、结果分页、错误展示。
-- LSP 自动补全（**当前版本引擎：PostgreSQL**）。
+- LSP 自动补全（PostgreSQL）。
 - 查询历史（自身，可搜索重跑）。
 - 保存查询（Worksheet，项目内共享）。
 - EXPLAIN。
-- 查询成本护栏（EXPLAIN 估算 + 阈值拦截/告警）。
-- 权限/脱敏/审计联动。
+- 查询保护：语句超时 + 行数/字节上限 + 并发限制。
+- 权限/审计联动。
 
-**可选增强（不在本期必须范围）：** AdminExecute 管理连接模式、AI 辅助生成 SQL、跨库查询。
+**可选增强（不在 v1 范围）：** AdminExecute 管理连接模式、AI 辅助生成 SQL、跨库查询、EXPLAIN 成本护栏（[18 §1.3](./18-roadmap.md)）。

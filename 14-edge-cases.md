@@ -1,6 +1,6 @@
 # 14 — 边界条件与异常处理矩阵
 
-> 后端开发必读。把"踩坑点"提前拍板:删除级联、并发、SQL×脱敏交互、分页、断连恢复、会话边界、输入/配额、审计容错。每条给出**默认行为**与**错误码**;标 ⚠️ 的为建议默认值,你可覆盖。
+> 后端开发必读。把"踩坑点"提前拍板:删除级联、并发、分页、断连恢复、会话边界、输入/配额、审计容错。每条给出**默认行为**与**错误码**;标 ⚠️ 的为建议默认值,你可覆盖。
 
 ---
 
@@ -13,18 +13,16 @@
 | **Instance** | 其 databases、data_sources | **级联软删**(连同库) | 库无实例无意义;操作需二次确认 + 审计 |
 | | 进行中的 sync | 取消该实例的同步任务 | |
 | | 引用该库的 worksheet/历史/导出 | **保留为孤儿**(UI 隐藏,不报错) | 历史数据不丢;库恢复后自动重现 |
-| **Database** | database_schemas / sync_history / column_annotations | **级联软删/清理** | 元数据随库走 |
-| | active access_grants(JIT) | 自动 REVOKE | |
+| **Database** | database_schemas / sync_history | **级联软删/清理** | 元数据随库走 |
 | | 引用的 worksheet/历史/导出 | **保留为孤儿** | 同上 |
 | **User** | (默认)**禁用**(`status=disabled`)而非硬删 | 保留 user 行,便于审计回溯 | 离职标准动作 |
 | | role_assignments、group_members | 移除 | |
 | | refresh_tokens / access_tokens | 全部吊销 | 立即踢下线 |
 | | 其创建的 worksheet | **保留**,creator 标记为已禁用用户 | 不转让,除非手动 |
-| | 其发起的 JIT | 自动 REVOKE | |
 | | favorites / notifications / query_history | 保留(本人已不可见) | |
 | **Group** | group_members | 级联删成员关系 | |
 | | role_assignments 中 `group:x@` | 保留绑定但永不命中(组成员为空)(D31) | 后续可做同步清理 |
-| **Worksheet** | favorites / share_links | **级联删** | 收藏/链接指向的对象没了 |
+| **Worksheet** | favorites | **级联删** | 收藏指向的对象没了 |
 | **Project** | instances/databases/worksheets/export_tasks | **非空阻塞**:需先清理或显式 `force=true` 级联(D27) | 防误删整团队资源 |
 | **Environment** | 被引用的 instances/databases | **阻塞**:仍有资源引用时不允许删/停用 | 先迁移标注 |
 | **Undelete** | — | 软删资源可恢复;唯一名冲突时返回 `RESOURCE_ALREADY_EXISTS` | |
@@ -44,27 +42,9 @@
 
 ---
 
-## C. SQL 与脱敏/谓词列的精确交互(最易出错)
+## C. SQL 与脱敏/谓词列 —— 不在 v1 范围
 
-> 核心原则:**脱敏只改"输出列的值",无法阻止"通过聚合/过滤/分组推断明文"**。因此除 SELECT 输出外,敏感列出现在**任何会暴露其值的位置**都要按"谓词列"处理(拒绝或强制掩码比较)。
-
-| 场景 | 默认行为 | 错误码 |
-|---|---|---|
-| `SELECT phone` (敏感列在输出) | 输出掩码 | 正常返回(已脱敏) |
-| `WHERE phone='138...'` (谓词) | **拒绝** | `PREDICATE_COLUMN_REJECTED` |
-| `JOIN ON a.phone=b.phone` (谓词) | **拒绝** | `PREDICATE_COLUMN_REJECTED` |
-| `ORDER BY phone` | **拒绝**(可排序即泄露顺序/值域) | `PREDICATE_COLUMN_REJECTED` |
-| `GROUP BY phone` / `DISTINCT phone` | **拒绝** | `PREDICATE_COLUMN_REJECTED` |
-| 聚合:`SUM(salary)`、`AVG`、`COUNT(DISTINCT phone)` | **拒绝**(聚合结果泄露分布) | `PREDICATE_COLUMN_REJECTED` |
-| 函数包裹:`UPPER(phone)`、`SUBSTR(phone,1,3)` | **拒绝**(无法安全掩码函数结果) | `PREDICATE_COLUMN_REJECTED` |
-| 跨库 JOIN:另一库表的敏感列 | 按各列各自策略判定;任一敏感列触谓词即拒 | `PREDICATE_COLUMN_REJECTED` |
-| 子查询 / CTE / UNION | QuerySpan 递归展开,谓词列检查覆盖全部层 | 同上 |
-| VIEW 引用敏感列 | 查 VIEW 时按底层列策略判定 | 同上 |
-| 不支持脱敏的引擎查敏感列 | **拒绝查询** | `ENGINE_NOT_SUPPORTED` |
-| 查询报错但触及敏感列 | 错误信息**脱敏/截断** | 返回脱敏后 error |
-| 谓词列检查可配置 | 引擎能力开关 `isPredicateColumnsCheckEnabled`;关闭则退化为"仅输出掩码"(降级,记审计) | — |
-
-> "聚合/函数包裹敏感列一律拒绝"是**已确认的保守策略**(D29),零泄露。若未来某些场景需放开,可按语义类型白名单评估——但当前默认拒绝。
+> v1 不做应用层脱敏与谓词列保护（路线图见 [18 §1.1](./18-roadmap.md)；另见 [02 §4](./02-permission-and-access.md)）。敏感列可见性由数据库授权（GRANT）决定，平台不解析 SQL 做列级改写，因此**不存在**谓词列推断问题——能查到就可见，查不到（未授权）就不可见。
 
 ---
 
@@ -104,7 +84,6 @@
 | 改密 / 重置密码 | 吊销该用户所有 refresh token | — |
 | 登出 | 删 refresh + 清 Cookie | — |
 | MFA temp token 过期(>5min) | 要求重新登录第一步 | `AUTH_MFA_INVALID` |
-| **JIT grant 在查询执行中过期** | ⚠️ **查询开始时锁定 grant 有效性**;本次查询按既定(去脱敏与否)跑完,不中途切换 | — |
 | 登录失败次数超限 | 锁定(密码 10/10min,MFA 5/5min) | `AUTH_ACCOUNT_LOCKED` |
 | 查询/导出触发限流 | 拒绝 + `Retry-After` | `RESOURCE_EXHAUSTED RATE_LIMITED` |
 
@@ -140,8 +119,7 @@
 
 1. **删项目**:非空阻塞;需显式 `force=true` 才级联软删(D27)。✅
 2. **删用户**:禁用(soft),worksheet 保留为孤儿(creator 标记已禁用)(D28)。✅
-3. **聚合/函数包裹敏感列**:一律拒绝,最保守零泄露(D29)。✅
-4. **审计写入失败**:fail-open(不阻塞用户)+ stdout 镜像 + 告警 + 后台补写重试(D30)。✅
-5. **删 group 后 `group:x@` 历史绑定**:保留(永不命中);如需可后续做同步清理(D31)。✅
+3. **审计写入失败**:fail-open(不阻塞用户)+ stdout 镜像 + 告警 + 后台补写重试(D30)。✅
+4. **删 group 后 `group:x@` 历史绑定**:保留(永不命中);如需可后续做同步清理(D31)。✅
 
 其余均为无明显歧义的工程默认。

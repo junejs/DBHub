@@ -28,8 +28,6 @@
 | DataSource | `.../instances/{instance}/dataSources/{dataSource}` | 实例下连接 |
 | Worksheet | `projects/{project}/worksheets/{worksheet}` | 保存的查询 |
 | Favorite | `users/{user}/favorites/{favorite}` | 个人收藏 |
-| ShareLink | `worksheets/{worksheet}/shareLinks/{id}` | 分享链接 |
-| AccessGrant | `projects/{project}/accessGrants/{grant}` | JIT |
 | ExportTask | `projects/{project}/exportTasks/{task}` | 异步导出 |
 | User / Group | `users/{user}` / `groups/{group}` | 平台级身份 |
 | IDP | `identityProviders/{idp}` | 身份提供商 |
@@ -81,7 +79,7 @@ message ListResponse { repeated X items = 1; string next_page_token = 2; int32 t
 ```proto
 // errors.proto
 message ErrorInfo {
-  string reason = 1;        // 业务错误码,如 "QUERY_COST_EXCEEDED"
+  string reason = 1;        // 业务错误码,如 "EXPORT_TOO_LARGE_FOR_SYNC"
   string domain = 2;        // "dbh"
   map<string, string> metadata = 3;  // 额外上下文(位置、阈值、资源名)
 }
@@ -118,24 +116,21 @@ REST 端映射为:`{ "code": <int>, "message": "...", "details": [{ "@type": "..
 | `AUTH_TOKEN_EXPIRED` | UNAUTHENTICATED | access token 过期(提示 refresh) |
 | `PERMISSION_DENIED` | PERMISSION_DENIED | 无对应权限 |
 | `PROJECT_ISOLATION` | PERMISSION_DENIED | 跨项目访问被拒(资源不在调用者项目) |
-| `PREDICATE_COLUMN_REJECTED` | PERMISSION_DENIED | 敏感列出现在 WHERE/JOIN |
 | `RESOURCE_NOT_FOUND` | NOT_FOUND | 资源不存在或无权可见 |
 | `RESOURCE_ALREADY_EXISTS` | ALREADY_EXISTS | 唯一冲突(如同名实例) |
 | `CONCURRENT_MODIFICATION` | ABORTED | ETag 不匹配 |
 | `INVALID_SQL` | INVALID_ARGUMENT | 语法错误(details.metadata.position) |
 | `NON_READONLY_STATEMENT` | FAILED_PRECONDITION | 只读连接执行了 DDL/DML |
 | `MULTI_STATEMENT_NOT_SUPPORTED` | INVALID_ARGUMENT | 该引擎不支持多语句 |
-| `QUERY_COST_EXCEEDED` | FAILED_PRECONDITION | 成本超硬阈值(被拦截);metadata 带 threshold |
 | `QUERY_ROW_LIMIT_EXCEEDED` | FAILED_PRECONDITION | 结果超行数上限 |
 | `QUERY_TIMEOUT` | DEADLINE_EXCEEDED(504) | 语句超时 |
 | `EXPORT_TOO_LARGE_FOR_SYNC` | FAILED_PRECONDITION | 同步导出预估 >1 万行,强制异步(D22) |
 | `EXPORT_ARCHIVE_EXPIRED` | NOT_FOUND | 产物过期已清理 |
 | `RATE_LIMITED` | RESOURCE_EXHAUSTED | 触发限流(查询/登录) |
 | `DB_CONNECTION_FAILED` | UNAVAILABLE | 连不上业务库 |
-| `ENGINE_NOT_SUPPORTED` | INVALID_ARGUMENT | 引擎能力不支持(如不支持脱敏的引擎查敏感列) |
 | `VALIDATE_ONLY_FAILED` | FAILED_PRECONDITION | 测试连接失败 |
 
-> 引擎原始错误(如 PG 错误码)作为 `ErrorInfo.metadata.engine_error` 透传,但涉敏感列时脱敏。
+> 引擎原始错误(如 PG 错误码)作为 `ErrorInfo.metadata.engine_error` 透传。
 
 ---
 
@@ -160,8 +155,6 @@ message QueryResult {
   google.protobuf.Duration latency = 6;
   string statement = 7;
   repeated string engine_messages = 8;        // NOTICE/PRINT
-  repeated MaskingReason masking_reasons = 9;  // 每列脱敏说明
-  string applied_access_grant = 10;           // 命中的 JIT
 }
 message QueryRow { repeated RowValue values = 1; }
 message RowValue { oneof kind {
@@ -176,13 +169,12 @@ message QueryError {
     SyntaxError syntax_error = 2;       // 含位置
     PermissionDenied permission_denied = 3;
     CommandError command_error = 4;     // DDL/DML/非只读
-    EngineError engine_error = 5;       // 引擎原始错误(脱敏后)
+    EngineError engine_error = 5;       // 引擎原始错误
   }
 }
 message SyntaxError { int64 position = 1; string message = 2; }
 message CommandError { string kind = 1; string message = 2; }   // ddl|dml|non_read_only
 message EngineError { string code = 1; string message = 2; }
-message MaskingReason { string column = 1; string semantic_type = 2; string algorithm = 3; }
 ```
 
 ---
@@ -238,7 +230,7 @@ message ExportRequest {
   string name = 1; string statement = 2; ExportFormat format = 3;
   string password = 4; int32 limit = 5;
 }
-message ExportResponse { bytes content = 1; string applied_access_grant = 2; }
+message ExportResponse { bytes content = 1; }
 // 预估 >1 万行 → 返回 EXPORT_TOO_LARGE_FOR_SYNC,改走 ExportTaskService
 ```
 
@@ -261,7 +253,7 @@ message ExportTask {
   google.protobuf.Timestamp create_time = 7;
   google.protobuf.Timestamp complete_time = 8;
   int64 row_count = 9; int64 size_bytes = 10;
-  string error = 11; string export_archive_id = 12; string applied_access_grant = 13;
+  string error = 11; string export_archive_id = 12;
 }
 message CreateExportTaskRequest {
   string parent = 1;                // projects/{p}
@@ -319,12 +311,7 @@ message Database {
   map<string,string> labels = 7;
 }
 
-service DatabaseCatalogService {
-  rpc GetDatabaseCatalog(...) returns (DatabaseCatalog)    { option (dbh.permission)="db.databaseCatalogs.get"; }
-  rpc UpdateDatabaseCatalog(...) returns (DatabaseCatalog) { option (dbh.permission)="db.databaseCatalogs.update"; option (dbh.audit)=true; }
-}
-message DatabaseCatalog { string name = 1; repeated SchemaCatalog schemas = 2; }
-message ColumnCatalog { string name=1; string semantic_type=2; map<string,string> labels=3; string classification=4; }
+// DatabaseCatalog（列级语义类型/分类标注）不在 v1 范围，v1 不提供（见 [18 §1.1](./18-roadmap.md)）。
 ```
 
 ### 6.6 IamService — 权限绑定(类 GCP IAM)
@@ -334,39 +321,21 @@ service IamService {
   rpc GetIamPolicy(GetIamPolicyRequest) returns (IamPolicy)
     { option (dbh.permission)="db.projects.getIamPolicy"; }   // 通用:scope 分 project/workspace
   rpc SetIamPolicy(SetIamPolicyRequest) returns (IamPolicy)
-    { option (dbh.permission)="db.projects.setIamPolicy"; option (dbh.audit)=true; }  // 记 PolicyDelta
+    { option (dbh.permission)="db.projects.setIamPolicy"; option (dbh.audit)=true; }  // 记前后差异
   rpc TestIamPermissions(...) returns (TestIamPermissionsResponse);
 }
 message IamPolicy { repeated Binding bindings = 1; string etag = 2; }
 message Binding {
   string role = 1;                 // roles/sqlEditorReadUser
   repeated string members = 2;     // user:x@ / group:y@ / allUsers
-  string condition = 3;            // CEL
+  string condition = 3;            // 结构化条件 JSON（环境/库/表）
 }
 message SetIamPolicyRequest { string resource = 1; IamPolicy policy = 2; string etag = 3; }  // 乐观锁
 ```
 
-### 6.7 AccessGrantService — JIT 临时访问
+### 6.7 AccessGrantService（JIT）— 不在 v1 范围
 
-```proto
-service AccessGrantService {
-  rpc CreateAccessGrant(...) returns (AccessGrant)  { option (dbh.permission)="db.accessGrants.create"; option (dbh.audit)=true; }
-  rpc ActivateAccessGrant(...) returns (AccessGrant){ option (dbh.permission)="db.accessGrants.activate"; option (dbh.audit)=true; }  // 审批
-  rpc RevokeAccessGrant(...) returns (AccessGrant)  { option (dbh.permission)="db.accessGrants.revoke"; option (dbh.audit)=true; }
-  rpc ListAccessGrants(...) returns (...);
-}
-message AccessGrant {
-  string name = 1;                 // projects/{p}/accessGrants/{id}
-  string state = 2;                // PENDING|ACTIVE|REVOKED|EXPIRED
-  string user = 3; string database = 4;
-  string statement = 5;            // 可选,绑定精确 SQL
-  bool unmask = 6; bool allow_export = 7;
-  string reason = 8;
-  google.protobuf.Timestamp expire_time = 9;
-  string approved_by = 10; google.protobuf.Timestamp approved_time = 11;
-}
-// Create 后推 jit_pending 通知给审批人;Activate 后推 jit_resolved 给申请人(D21)
-```
+> v1 不提供平台侧 JIT（路线图见 [18 §1.2](./18-roadmap.md)）。
 
 ### 6.8 AuditLogService
 
@@ -386,7 +355,7 @@ message AuditLog {
 }
 message SearchAuditLogsRequest {
   string parent = 1;                // projects/{p} 或省略(全局,securityAdmin)
-  string filter = 2;                // CEL: method/user/resource/severity/create_time
+  string filter = 2;                // 结构化过滤: method/user/resource/severity/create_time
   int32 page_size = 3; string page_token = 4;
 }
 // 读权限范围见 [06 §5.1](./06-audit-log.md) D26
@@ -439,23 +408,18 @@ service WorksheetService {
 }
 message Worksheet {
   string name = 1; string project = 2; string database = 3;
-  string title = 4; string content = 5; string visibility = 6;  // PRIVATE|PROJECT_READ|PROJECT_WRITE|LINK
+  string title = 4; string content = 5; string visibility = 6;  // PRIVATE|PROJECT
   string creator = 7; string etag = 8;
 }
 service FavoriteService {
   rpc FavoriteWorksheet(FavoriteRequest) returns (Favorite)        // user_id+worksheet_id 唯一
   rpc UnfavoriteWorksheet(...) rpc ListMyFavorites(...)
-  rpc UpdateFavoriteOrganizer(...)                                   // folder/note/pinned
 }
-message Favorite { string name=1; string worksheet=2; string folder=3; string note=4; bool pinned=5; }
-service ShareLinkService {
-  rpc CreateShareLink(...) returns (ShareLink)    // 生成随机 token;仅 visibility=LINK 时
-  rpc RevokeShareLink(...) rpc OpenSharedWorksheet(...)   // 按 token 打开,仍校验登录+权限
-}
-message ShareLink { string worksheet=1; string token=2; google.protobuf.Timestamp expire_time=3; }  // token 仅创建时返回明文
+message Favorite { string name=1; string worksheet=2; }
+// ShareLinkService（带 token 分享链接）不在 v1 范围（见 [18 §1.8](./18-roadmap.md)）；v1 通过 visibility=PROJECT 实现项目内分享。
 ```
 
-> 分享只传递 SQL 文本,执行仍按接收者本人权限/脱敏(D18)。
+> 分享只传递 SQL 文本,执行仍按接收者本人权限(D18)。
 
 ### 6.13 NotificationService(站内通知)
 
@@ -466,21 +430,16 @@ service NotificationService {
   rpc GetUnreadCount(...) returns (Int32Value)
 }
 message Notification {
-  string name = 1; string type = 2;   // export_done|jit_pending|jit_resolved|system
+  string name = 1; string type = 2;   // export_done|system
   string title = 3; string body = 4; string link = 5;
   google.protobuf.Timestamp read_time = 6; google.protobuf.Timestamp create_time = 7;
 }
 ```
 
-### 6.14 MaskingPolicyService & SettingService
+### 6.14 SettingService
 
 ```proto
-service MaskingPolicyService {
-  // 脱敏规则/豁免/数据分类/语义类型 的 CRUD;securityAdmin
-  rpc GetMaskingRulePolicy / UpdateMaskingRulePolicy
-  rpc GetMaskingExemptionPolicy / UpdateMaskingExemptionPolicy
-  rpc ListSemanticTypes / ListDataClassifications
-}
+// MaskingPolicyService（脱敏规则/豁免/分类/语义类型）不在 v1 范围（见 [18 §1.1](./18-roadmap.md)）。
 service SettingService {
   rpc GetSetting / UpdateSetting   // 平台级 key/value 配置;UpdateSetting 记前值审计
 }
@@ -494,31 +453,23 @@ service SettingService {
 ```
 POST /v1/projects/orders/instances/pg-prod/databases/orders_db:query
 Authorization: Bearer <jwt>
-{ "statement": "SELECT id, phone FROM customers WHERE region='east' LIMIT 100", "limit": 100 }
+{ "statement": "SELECT id, region FROM customers LIMIT 100", "limit": 100 }
 ```
 
 **成功**(流式,一个 QueryResult):
 ```json
 {
-  "column_names": ["id","phone"],
-  "rows": [{"values":[{"int_value":1},{"string_value":"138****1234"}]}, ...],
+  "column_names": ["id","region"],
+  "rows": [{"values":[{"int_value":1},{"string_value":"east"}]}, ...],
   "rows_count": 100,
-  "latency": "0.42s",
-  "masking_reasons": [{"column":"phone","semantic_type":"phone","algorithm":"range"}]
+  "latency": "0.42s"
 }
 ```
 
-**被成本护栏拦截**:
+**结果超行数上限**:
 ```json
-{ "code":412, "message":"查询成本超阈值,请加过滤条件或改用导出",
-  "details":[{"@type":"dbh.ErrorInfo","reason":"QUERY_COST_EXCEEDED",
-              "metadata":{"threshold":"1000000","estimated":"5230000"}}] }
-```
-
-**谓词列被拒**(敏感列在 WHERE):
-```json
-{ "code":403, "reason":"PREDICATE_COLUMN_REJECTED",
-  "message":"敏感列 phone 不可用于 WHERE/JOIN" }
+{ "code":412, "reason":"QUERY_ROW_LIMIT_EXCEEDED",
+  "message":"结果超行数上限,请加过滤条件或改用导出" }
 ```
 
 ---

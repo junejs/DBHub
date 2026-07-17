@@ -1,6 +1,6 @@
 # 04 — 数据导出
 
-数据导出是第二大核心场景。本文档定义导出任务的模型、格式、生命周期，以及与权限/脱敏/审计的联动。
+数据导出是第二大核心场景。本文档定义导出任务的模型、格式、生命周期，以及与权限/审计的联动。
 
 ---
 
@@ -8,7 +8,7 @@
 
 - 作为分析师，我希望把查询结果导出为 CSV/Excel 用于报表。
 - 作为分析师，当结果很大时，我希望能提交后台导出任务，完成后下载。
-- 作为安全管理员，我希望导出同样受脱敏约束，且每一次导出都被强审计，并能限制是否允许导出敏感数据。
+- 作为安全管理员，我希望每一次导出都被强审计，并能按环境限制导出规模与是否需要审批。
 
 ---
 
@@ -24,13 +24,13 @@
 > 系统对目标语句跑 EXPLAIN 估算行数，超过 1 万行**强制走异步**（D22），不允许同步导出大结果。
 
 ### 2.2 导出格式
-- **CSV**、**JSON**、**SQL**（`INSERT INTO ...` 语句）、**XLSX**。
+- **CSV**、**JSON**。（XLSX、SQL(`INSERT`) 格式延后，见 §7）
 - 每条语句的结果独立成文件，打包进一个**密码加密 ZIP**。
 
 ### 2.3 导出来源
 - **来自工作台 SQL**：用户在工作台填入导出 SQL（一条或多条），选择格式与密码。
 - **来自保存的查询（Worksheet）**：选定已保存 SQL 发起导出。
-- **来自审批单（可选增强）**：审批通过的批量导出任务，可走 ADMIN 连接、按审批条件去脱敏。
+- **来自审批单（可选增强）**：审批通过的批量导出任务，可走 ADMIN 连接。
 
 ### 2.4 导出任务生命周期（异步）
 ```
@@ -54,13 +54,10 @@ CREATED → RUNNING → SUCCEEDED → DOWNLOADABLE → EXPIRED
 | 控制项 | 说明 |
 |---|---|
 | 权限 | 需 `db.sql.select`（导出走查询路径）或专门的 `db.exports.create` |
-| 脱敏 | **默认强制脱敏**，与工作台查询一致；导出文件中的敏感列同样掩码 |
-| 谓词列保护 | 同查询 |
-| 导出授权 | 涉敏感/去脱敏导出需 JIT（`export=true`）或审批 |
-| 去脱敏导出 | 仅审批通过的导出任务或 JIT 可去脱敏；工作台导出默认不去脱敏 |
-| **环境差异（重要）** | 导出护栏按环境差异化：行数上限取 `environment_policies.export_max_rows`；prod 默认 `export_require_approval=true`（导出需审批/JIT），dev/test 宽松 |
+| 敏感列 | v1 不做应用层脱敏；敏感列可见性由数据库授权决定（导出与查询共用同一只读连接） |
+| **环境差异（重要）** | 导出护栏按环境差异化：行数上限取 `environment_policies.export_max_rows`；prod 默认 `export_require_approval=true`（导出需审批），dev/test 宽松 |
 | 产物密码 | 必须密码加密，防止产物在传输/存储中被读取 |
-| 审计 | 导出行为强审计：语句摘要、行数、是否脱敏、是否经 JIT、产物 ID、**环境** |
+| 审计 | 导出行为强审计：语句摘要、行数、产物 ID、**环境** |
 | 行数/大小上限 | 单任务上限（按环境配），防全表导出滥用 |
 | 下载限制 | 产物保留期内可下载；过期不可恢复 |
 
@@ -79,7 +76,7 @@ CREATED → RUNNING → SUCCEEDED → DOWNLOADABLE → EXPIRED
 ```
 name             // projects/{p}/instances/{i}/databases/{d}（同步）或 projects/{p}（任务）
 statement        // 导出 SQL
-format           // CSV/JSON/SQL/XLSX
+format           // CSV/JSON（v1）
 password         // ZIP 密码
 data_source_id   // 可选
 limit            // 可选行数上限
@@ -93,7 +90,6 @@ creator, create_time, complete_time
 row_count, size_bytes
 error
 export_archive_id  // 产物引用
-applied_access_grant
 ```
 
 ---
@@ -103,8 +99,7 @@ applied_access_grant
 - 格式写入器按格式独立实现，**流式写入**（避免大结果集驻留内存）：
   - CSV：流式、引号转义、二进制 hex、空值处理。
   - JSON：流式对象/数组。
-  - SQL：`INSERT INTO <table>` 前缀（从解析的语句解析出目标表资源），逐行值。
-  - XLSX：注意 Excel 行数上限（约 104 万）。
+  - （SQL/XLSX 延后；v1 仅 CSV/JSON）
 - ZIP 加密使用支持密码的 zip 库；每个语句产出一对文件：`statement-N.sql` + `statement-N.result.<ext>`。
 - 异步执行器（Task Runner）调用 `Driver.QueryConn`（带超时、流式），写入产物存储，记录 `export_archive`，任务状态置 SUCCEEDED。
 - 清理器（Data Cleaner）周期删除过期产物（默认 24h）。
@@ -121,9 +116,9 @@ applied_access_grant
 
 ## 7. 功能范围
 
-- 同步导出（CSV/JSON/SQL/XLSX）+ 密码 ZIP。
+- 同步导出（CSV/JSON）+ 密码 ZIP。
 - 异步导出任务（创建/查询/下载/过期清理）。
-- 导出脱敏、权限、审计联动。
+- 导出权限、审计联动；敏感列由数据库授权控制。
 - 导出中心（任务列表 + 状态 + 下载）。
 
-**可选增强（不在本期必须范围）：** 审批制批量去脱敏导出、导出到外部对象存储。
+**可选增强（不在 v1 范围，见 [18 §1.7](./18-roadmap.md)）：** XLSX/SQL 导出格式、审批制批量导出、导出到外部对象存储。

@@ -78,15 +78,15 @@
 |---|---|---|---|
 | 后端 Go + Connect-RPC + proto | ✅ | ✅ **沿用** | 注解驱动权限/审计，前后端类型共享，已验证 |
 | buf + protovalidate | ✅ | ✅ **沿用** | proto 单一来源 + 字段校验 |
-| cel-go | ✅ | ✅ **沿用** | IAM 条件、脱敏、审计过滤统一 CEL |
+| cel-go | ✅ | ❌ **不引入** | 数据级条件改结构化字段（环境/库/表），不暴露表达式语言 |
 | Monaco + LSP over WS | ✅ | ✅ **沿用** | 高质量 SQL 补全 |
 | 前端 React + Vite + TS + Tailwind | ✅ | ✅ **沿用** | 现代主流栈 |
 | 平台元数据库 PostgreSQL | ✅ | ✅ **沿用** | JSONB + 分区 + 表达式索引 |
 | 元数据缓存 Redis | ✅ | ⚠️ **MVP 先进程内 LRU** | 单节点规模够用；不引入 Redis 依赖（D 简洁） |
 | 外部 Secret Manager（Vault/AWS/Azure） | ✅ | ⚠️ **MVP 应用层 AES-256-GCM + 可选 secret_ref**（D25） | 默认能跑，不强制外部依赖 |
-| 多引擎 PGX/MySQL 等驱动 | ✅ 多引擎 | ⚠️ **当前仅 PG（pgx）**（D4） | 聚焦；插件架构保留扩展 |
+| 多引擎 PGX/MySQL 等驱动 | ✅ 多引擎 | ⚠️ **当前仅 PG（pgx）**（D4） | 聚焦；v1 不预设插件抽象，未来按需抽取 |
 | 单体 monolith | ✅ | ✅ **沿用** | 规模无需微服务 |
 | pgx 用 Bytebase fork | ✅ | ❌ 用官方 pgx | 我们无历史包袱，不背 fork |
 | 前端双样式（Stylex + Tailwind）迁移中 | ✅ | ❌ **只选 Tailwind 一套** | 新项目不背双方案 |
 
-**一句话：后端协议/权限/补全/平台 DB 这些"骨架"沿用 Bytebase 验证过的选型；缓存/密钥/多引擎这些"扩展面"按 MVP 简化;凡涉及历史包袱(fork、双样式)一律不背。**
+**一句话：后端协议/补全/平台 DB 这些"骨架"沿用 Bytebase 验证过的选型；权限条件(改结构化)、脱敏(v1 不做)、多引擎/缓存/密钥这些"扩展面"按 MVP 简化;凡涉及历史包袱(fork、双样式)一律不背。**

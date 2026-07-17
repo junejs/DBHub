@@ -12,7 +12,7 @@
 4. **单组织**：不做多租户，**没有 `workspace_id` / `tenant_id` 列**。若将来确需多租户，再统一加列——届时是一次性迁移，而非现在背着它。
 5. **引擎可扩展**：`engine` 存为 `text`（如 `'postgresql'`），不是数据库枚举。新增引擎 = 加插件代码 + 数据行，**无需改表结构**。
 6. **JSONB 受控使用**：仅用于真正半结构化的字段（连接参数、schema 快照、设置、策略增量）。关系能表达的就用关系表，避免把 JSONB 当万能仓库。
-7. **CEL 条件**：以 `text` 存储，在应用层用 `cel-go` 求值。
+7. **结构化授权条件**：以 JSONB 存储（环境/库/表的多选），在应用层求值。
 8. **命名**：表名复数蛇形（`users`、`role_assignments`）；外键列 `_id` 后缀；时间戳 `_at` 后缀。
 
 ---
@@ -22,7 +22,7 @@
 ```
 身份域
   users(kind=user|service) ──< group_members >── groups
-  users ──< refresh_tokens / access_tokens
+  users ──< refresh_tokens
   identity_providers
 
 资源组织
@@ -35,26 +35,22 @@
   databases                            （库的项目归属由实例决定）
        │
        ▼
-  database_schemas (1:1)        column_annotations (per column)
+  database_schemas (1:1)
 
 权限
   roles ──< role_permissions
   role_assignments ──(scope: project|workspace)──> roles
-  access_grants (JIT)
-
-脱敏
-  data_classifications      semantic_types(algorithm)
-  masking_rules             masking_exemptions
 
 查询/协作
   query_history             worksheets ──< favorites
-                            worksheets ──< share_links
 
 导出
   export_tasks ──> export_archives
 
 横切
-  audit_logs (按月分区)      settings(k/v)
+  audit_logs (按月分区)      settings(k/v)      notifications
+
+（不在 v1 范围、v1 不建表：脱敏/JIT/服务账号/分享相关表，详见 [18 路线图](./18-roadmap.md)）
 ```
 
 ---
@@ -127,18 +123,7 @@ create table refresh_tokens (
 );
 create index on refresh_tokens(user_id);
 
--- 访问令牌（服务账号 / 个人 PAT，长期）
-create table access_tokens (
-  id           bigint generated always as identity primary key,
-  token_hash   bytea not null unique,                -- sha256(secret)
-  user_id      bigint not null references users(id),
-  name         text,                                 -- 标签
-  scopes       text[],
-  last_used_at timestamptz,
-  expires_at   timestamptz,
-  revoked_at   timestamptz,
-  created_at   timestamptz not null default now()
-);
+-- 服务账号 / 个人访问令牌（PAT）延后到 v2：届时新增 access_tokens 表。
 ```
 
 ### 3.2 资源组织
@@ -169,14 +154,12 @@ create table environments (
   created_at      timestamptz not null default now()
 );
 
--- 环境级运营策略（按环境差异化：护栏/脱敏/导出）
+-- 环境级运营策略（按环境差异化：查询/导出护栏）
 create table environment_policies (
   environment_id        bigint primary key references environments(id),
   query_row_limit       int,                         -- 单次查询默认行数上限
-  query_cost_threshold  jsonb,                       -- {"soft":1e5,"hard":1e6} EXPLAIN 成本阈值
   export_max_rows       bigint,                      -- 单次导出行数上限
-  export_require_approval boolean not null default false,  -- 导出是否需审批/JIT
-  masking_mode          text not null default 'strict',     -- strict | relaxed | off
+  export_require_approval boolean not null default false,  -- 导出是否需审批
   settings              jsonb not null default '{}'  -- 扩展位
 );
 
@@ -264,24 +247,7 @@ create table sync_history (
 );
 create index on sync_history(database_id, synced_at desc);
 
--- 列级标注（脱敏语义类型、分类、标签）—— 规范化、可查询
-create table column_annotations (
-  id               bigint generated always as identity primary key,
-  database_id      bigint not null references databases(id),
-  schema_name      text not null,
-  table_name       text not null,
-  column_name      text not null,
-  semantic_type    text,                             -- 'phone' / 'email' / 'id_card'
-  classification_id bigint references data_classifications(id),
-  labels           jsonb not null default '{}',
-  created_at       timestamptz not null default now(),
-  updated_at       timestamptz not null default now()
-);
-create unique index column_annotations_uidx
-  on column_annotations(database_id, schema_name, table_name, column_name);
-```
-
-> 标注按 `(schema, table, column)` 名称匹配读取；schema 变更后旧标注自然失效或由后台清理，不阻塞查询。
+-- schema 快照与结构浏览即可；列级 Catalog 标注（semantic_type/classification）属脱敏能力，延后 v2。
 
 ### 3.4 权限（RBAC + IAM）
 
@@ -305,7 +271,7 @@ create table role_permissions (
   primary key (role_id, permission)
 );
 
--- IAM 绑定：把角色授予成员（在 workspace 或 project 范围），可选 CEL 条件
+-- IAM 绑定：把角色授予成员（在 workspace 或 project 范围），可选结构化条件
 create table role_assignments (
   id           bigint generated always as identity primary key,
   scope_type   text not null,                        -- workspace | project
@@ -313,7 +279,7 @@ create table role_assignments (
   role_id      bigint not null references roles(id),
   member_kind  text not null,                        -- user | group | all
   member_id    bigint,                               -- users/groups.id；all 为 null（无 FK，多态）
-  condition    text,                                 -- CEL，可选
+  condition    jsonb,                                -- 结构化条件 {environments,databases,schemas,tables}，可选
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now()
 );
@@ -324,69 +290,13 @@ create index on role_assignments(member_kind, member_id);
 
 > `member_id` 故意不加外键（多态指向 users/groups）。`scope_id` 同理（workspace/project）。一致性由应用层保证。
 
-### 3.5 脱敏
+### 3.5 列级脱敏 —— 不在 v1 范围
 
-```sql
--- 数据分类（敏感等级）
-create table data_classifications (
-  id    bigint generated always as identity primary key,
-  name  text not null unique,                        -- 'Confidential'
-  level int not null,                                -- 数值越大越敏感
-  description text
-);
+> v1 不建脱敏相关表（路线图见 [18 §1.1](./18-roadmap.md)）。v2 引入时新增 `data_classifications`/`semantic_types`/`masking_rules`/`masking_exemptions`/`column_annotations`，不改现有表。
 
--- 语义类型 → 脱敏算法
-create table semantic_types (
-  type        text primary key,                      -- 'phone'
-  algorithm   jsonb not null,                        -- {kind:'range', prefix:3, suffix:4} | full | md5 | inner_outer
-  description text
-);
+### 3.6 JIT 临时访问 —— 不在 v1 范围
 
--- 脱敏规则：CEL 条件 → 语义类型
-create table masking_rules (
-  id            bigint generated always as identity primary key,
-  name          text,
-  condition     text not null,                       -- CEL over resource.*
-  semantic_type text not null references semantic_types(type),
-  priority      int not null default 0,
-  enabled       boolean not null default true,
-  created_at    timestamptz not null default now(),
-  updated_at    timestamptz not null default now()
-);
-
--- 脱敏豁免：谁、何时可看明文
-create table masking_exemptions (
-  id           bigint generated always as identity primary key,
-  member_kind  text not null,
-  member_id    bigint,
-  condition    text,                                 -- CEL over resource.* + request.time
-  expires_at   timestamptz,
-  created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now()
-);
-```
-
-### 3.6 JIT 临时访问
-
-```sql
-create table access_grants (
-  id           bigint generated always as identity primary key,
-  state        text not null,                        -- pending | active | revoked | expired
-  user_id      bigint not null references users(id),
-  database_id  bigint not null references databases(id),
-  statement    text,                                 -- 可选：绑定到精确 SQL
-  unmask       boolean not null default false,
-  allow_export boolean not null default false,
-  reason       text,
-  expire_at    timestamptz,
-  approved_by  bigint references users(id),
-  approved_at  timestamptz,
-  created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now()
-);
-create index on access_grants(user_id, state);
-create index on access_grants(database_id) where state = 'active';
-```
+> v1 不建 `access_grants` 表（路线图见 [18 §1.2](./18-roadmap.md)）。
 
 ### 3.7 查询、Worksheet、收藏、分享
 
@@ -411,7 +321,7 @@ create table worksheets (
   database_id  bigint references databases(id),
   title        text not null,
   content      text not null,
-  visibility   text not null default 'private',      -- private | project_read | project_write | link
+  visibility   text not null default 'private',      -- private | project
   created_by   bigint not null references users(id),
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now(),
@@ -424,25 +334,12 @@ create table favorites (
   id            bigint generated always as identity primary key,
   user_id       bigint not null references users(id),
   worksheet_id  bigint not null references worksheets(id),
-  folder        text,                                -- 单级标签
-  note          text,
-  pinned        boolean not null default false,
-  last_opened_at timestamptz,
   created_at    timestamptz not null default now(),
   unique (user_id, worksheet_id)
 );
 create index on favorites(user_id);
 
--- 分享链接（随机 token，哈希存储）
-create table share_links (
-  id            uuid primary key default gen_random_uuid(),
-  token_hash    bytea not null unique,               -- sha256(token)
-  worksheet_id  bigint not null references worksheets(id),
-  created_by    bigint references users(id),
-  expires_at    timestamptz,
-  revoked_at    timestamptz,
-  created_at    timestamptz not null default now()
-);
+-- 分享链接（带 token）延后到 v2：届时新增 share_links 表。v1 通过 worksheets.visibility 实现项目内分享。
 ```
 
 ### 3.8 导出
@@ -454,11 +351,10 @@ create table export_tasks (
   user_id                 bigint not null references users(id),
   database_id             bigint not null references databases(id),
   statement               text not null,
-  format                  text not null,             -- csv | json | sql | xlsx
+  format                  text not null,             -- csv | json（v1）
   row_count               bigint,
   size_bytes              bigint,
   error                   text,
-  applied_access_grant_id bigint references access_grants(id),
   created_at              timestamptz not null default now(),
   started_at              timestamptz,
   completed_at            timestamptz
@@ -499,7 +395,7 @@ create table audit_logs (
   response       text,                               -- 已脱敏 JSON
   ip             inet,
   user_agent     text,
-  service_data   jsonb,                              -- 如 policy_delta
+  service_data   jsonb,                              -- 如权限变更前后差异
   primary key (id, created_at)
 ) partition by range (created_at);
 -- 按月建分区，例如：
@@ -519,18 +415,18 @@ create index on audit_logs(resource);
 create table notifications (
   id          bigint generated always as identity primary key,
   user_id     bigint not null references users(id),       -- 接收人
-  type        text not null,                              -- export_done | jit_pending | jit_resolved | system
+  type        text not null,                              -- export_done | system
   title       text not null,
   body        text,
   link        text,                                       -- 点击跳转的资源/页面
-  ref_id      bigint,                                     -- 关联对象 id（如 export_task_id / access_grant_id）
+  ref_id      bigint,                                     -- 关联对象 id（如 export_task_id）
   read_at     timestamptz,                                -- null = 未读
   created_at  timestamptz not null default now()
 );
 create index on notifications(user_id, read_at, created_at desc);
 ```
 
-> 触发点：异步导出完成（→ 发起人 `export_done`）、JIT 申请提交（→ 审批人 `jit_pending`）、JIT 审批结果（→ 申请人 `jit_resolved`）。MVP 仅站内，不做邮件（D21）。
+> 触发点：异步导出完成（→ 发起人 `export_done`）。MVP 仅站内，不做邮件（D21）。
 
 ### 3.11 设置
 
@@ -566,23 +462,11 @@ insert into environments(key,name,protection_level,color,rank) values
   ('dev',  'Development', 10, '#00703c', 10);
 
 -- 环境级策略（示例：prod 最严，dev 最宽松）
-insert into environment_policies(environment_id, query_row_limit, query_cost_threshold, export_max_rows, export_require_approval, masking_mode) values
-  ((select id from environments where key='prod'),  1000, '{"soft":100000,"hard":1000000}'::jsonb, 100000, true,  'strict'),
-  ((select id from environments where key='stage'), 5000, '{"soft":500000,"hard":5000000}'::jsonb, 500000, false, 'strict'),
-  ((select id from environments where key='test'),  10000,'{"soft":1000000,"hard":10000000}'::jsonb,1000000,false,'relaxed'),
-  ((select id from environments where key='dev'),   10000,'{"soft":10000000,"hard":100000000}'::jsonb,1000000,false,'relaxed');
-
--- 分类
-insert into data_classifications(name,level) values
-  ('Public',10),('Internal',20),('Confidential',30),('Restricted',40);
-
--- 语义类型与算法
-insert into semantic_types(type,algorithm) values
-  ('phone',   '{"kind":"range","prefix":3,"suffix":4}'::jsonb),
-  ('email',   '{"kind":"inner_outer","prefix":1,"suffix":0,"keep_domain":true}'::jsonb),
-  ('id_card', '{"kind":"range","prefix":4,"suffix":2}'::jsonb),
-  ('bank_card','{"kind":"range","prefix":4,"suffix":4}'::jsonb),
-  ('full',    '{"kind":"full"}'::jsonb);
+insert into environment_policies(environment_id, query_row_limit, export_max_rows, export_require_approval) values
+  ((select id from environments where key='prod'),  1000, 100000, true),
+  ((select id from environments where key='stage'), 5000, 500000, false),
+  ((select id from environments where key='test'),  10000,1000000,false),
+  ((select id from environments where key='dev'),   10000,1000000,false);
 
 -- role_permissions 由代码注册表灌入（权限常量集中维护）
 ```
@@ -593,26 +477,24 @@ insert into semantic_types(type,algorithm) values
 
 | 扩展场景 | 是否改表 | 做法 |
 |---|---|---|
-| 新增数据库引擎 | ❌ 不改 | `engine` 为 text；加 driver/parser 插件代码即可 |
-| 新增 IdP 协议 | ❌ 不改 | 加 idp 插件代码；`identity_providers.config` 容纳协议参数 |
-| 新增脱敏算法 | ❌ 不改 | `semantic_types.algorithm` 的 `kind` 由代码识别 |
+| 新增数据库引擎（未来） | ⚠️ 改代码 | v1 仅 PG；接入第二个引擎时抽取 driver/parser 抽象，不改现有表 |
+| 新增 IdP 协议 | ❌ 不改 | 加 idp 实现代码；`identity_providers.config` 容纳协议参数 |
 | 新增角色/权限 | ❌ 不改 | 插入 `roles` / `role_permissions` |
-| 新增敏感列标注 | ❌ 不改 | 插入 `column_annotations` |
 | 多租户（未来） | ⚠️ 加列 | 统一加 `tenant_id`（一次性迁移，现在不背） |
 | 变更管理（未来） | ➕ 加表 | 新增 `change_issues`/`change_tasks` 等表，不动现有表 |
 | 行级权限（未来） | ➕ 加表 | 新增 `row_filter_policies` 表，不改现有 |
+| 列级脱敏（v2） | ➕ 加表 | 新增 `data_classifications`/`semantic_types`/`masking_rules`/`masking_exemptions`/`column_annotations`，不改现有 |
 
 ---
 
 ## 6. 关键约束与索引策略
 
-- **Project 逻辑隔离（核心）**：实例与库都归属项目（`instances.project_id`；库的项目由实例决定）。所有数据访问（查询/导出/JIT/审计 parent）在执行前解析目标库 → 其实例的 `project_id`，并校验调用者在**该项目**内的角色绑定（`role_assignments(scope_type='project', scope_id=<project>)`）。未在该项目获得授权 → 默认拒绝，跨 Project 不可见、不可访问。`instances(project_id)` 索引支撑按项目列实例/库。
-- **环境标注（必须）**：每个实例必须标注 `environment_id`（NOT NULL）；数据库可显式标注，否则继承其实例的环境（`effective_environment`）。环境是 CEL 条件与 `environment_policies` 的策略维度：访问控制（`resource.environment_id=='prod'`）、脱敏强度、查询/导出护栏均按环境差异化。
+- **Project 逻辑隔离（核心）**：实例与库都归属项目（`instances.project_id`；库的项目由实例决定）。所有数据访问（查询/导出/审计 parent）在执行前解析目标库 → 其实例的 `project_id`，并校验调用者在**该项目**内的角色绑定（`role_assignments(scope_type='project', scope_id=<project>)`）。未在该项目获得授权 → 默认拒绝，跨 Project 不可见、不可访问。`instances(project_id)` 索引支撑按项目列实例/库。
+- **环境标注（必须）**：每个实例必须标注 `environment_id`（NOT NULL）；数据库可显式标注，否则继承其实例的环境（`effective_environment`）。环境是结构化授权条件与 `environment_policies` 的策略维度：访问控制（按环境限定）、查询/导出护栏均按环境差异化。
 - **每实例恰好 1 个 admin 数据源**：`one_admin_ds` 部分唯一索引。
 - **软删除下的唯一性**：所有带历史名的唯一约束用 `where deleted_at is null` 部分索引。
 - **审计查询性能**：`audit_logs` 按 `(created_at desc)` + `method` / `actor_id` / `resource` 索引；按月分区。
 - **权限判定热路径**：`role_assignments(member_kind, member_id)` 索引支撑「取该用户/组的所有绑定」。
-- **JIT 命中**：`access_grants(database_id) where state='active'` 部分索引。
 - **导出清理**：`export_archives(expires_at)` 支撑过期扫描删除。
 
 ---
@@ -621,11 +503,11 @@ insert into semantic_types(type,algorithm) values
 
 | PRD 模块 | 主要表 |
 |---|---|
-| [05 认证/IDP](./05-auth-idp.md) | users, groups, group_members, identity_providers, refresh_tokens, access_tokens |
-| [07 资源管理](./07-resource-management.md) | projects, environments, environment_policies, instances, data_sources, databases, database_schemas, column_annotations |
-| [02 权限与访问](./02-permission-and-access.md) | roles, role_permissions, role_assignments, access_grants, masking_rules, masking_exemptions, semantic_types, data_classifications, environment_policies |
+| [05 认证/IDP](./05-auth-idp.md) | users, groups, group_members, identity_providers, refresh_tokens |
+| [07 资源管理](./07-resource-management.md) | projects, environments, environment_policies, instances, data_sources, databases, database_schemas |
+| [02 权限与访问](./02-permission-and-access.md) | roles, role_permissions, role_assignments, environment_policies |
 | [03 SQL 查询](./03-sql-query.md) | query_history, worksheets |
 | [04 数据导出](./04-data-export.md) | export_tasks, export_archives |
-| [09 收藏与分享](./09-sql-favorite-share.md) | favorites, share_links |
+| [09 收藏与分享](./09-sql-favorite-share.md) | favorites |
 | [06 审计日志](./06-audit-log.md) | audit_logs |
 | 横切 | settings, notifications（站内通知，D21） |

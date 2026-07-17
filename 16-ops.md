@@ -99,9 +99,6 @@
 |---|---|
 | `dbh_query_duration_seconds`（histogram） | 查询耗时 |
 | `dbh_query_rows` | 返回行数 |
-| `dbh_query_cost_blocked_total` | 成本护栏拦截次数 |
-| `dbh_predicate_rejected_total` | 谓词列拒绝次数 |
-| `dbh_masked_columns_total` | 脱敏列次数 |
 | `dbh_export_task_state`（gauge by state） | 导出任务状态分布 |
 | `dbh_sync_failed_total` | 同步失败 |
 | `dbh_audit_write_failed_total` | 审计写入失败（D30 告警源） |
@@ -130,16 +127,14 @@
 ## 7. 测试策略
 
 ### 7.1 单元测试
-- 权限判定（IAM/CEL 各组合）、脱敏算法（range/md5/full/inner_outer）、谓词列提取、parser 切分/QuerySpan、成本阈值判定、环境策略解析。
+- 权限判定（IAM/结构化条件各组合）、parser 多语句切分、环境策略解析。
 
 ### 7.2 集成测试（testcontainers + 真 PostgreSQL）
-- 端到端：登录 → 查询 → 脱敏 → 审计；同步 → 补全；导出同步/异步；JIT 申请→审批→查询→过期。
+- 端到端：登录 → 查询 → 审计；同步 → 补全；导出同步/异步。
 - 边界用例（取自 [14](./14-edge-cases.md)）：删除级联、ETag 并发、断连恢复、限流。
 
-### 7.3 安全测试（越权矩阵 + 脱敏绕过）
+### 7.3 安全测试（越权矩阵）
 - **越权矩阵**：每个角色 × 每个关键操作的预期放行/拒绝（含跨项目 `PROJECT_ISOLATION`）。
-- **脱敏绕过**：聚合/函数/ORDER BY/GROUP BY/子查询/VIEW/跨库 JOIN（按 D29 应全部拒绝）。
-- **谓词列**：敏感列在 WHERE/JOIN 必拒。
 - **SQL 注入**：参数化、语句边界。
 - **令牌**：过期/吊销/重放/越权 scope。
 
@@ -147,17 +142,14 @@
 - 补全 P95 ≤ 200ms；查询首屏 P95 ≤ 2s；异步导出百万行吞吐；审计写入不阻塞主流程（D30 验证）。
 
 ### 7.5 审计完整性测试
-- 所有关键操作（[06 §3](./06-audit-log.md) 清单）均产生审计；绕过路径为 0；脱敏字段正确；字面量留存（D5）。
+- 所有关键操作（[06 §3](./06-audit-log.md) 清单）均产生审计；绕过路径为 0；审计敏感字段脱敏正确；字面量留存（D5）。
 
 ### 7.6 关键用例清单（摘）
 | 用例 | 预期 |
 |---|---|
 | 跨项目查库 | `PROJECT_ISOLATION` 拒绝 |
 | 只读连接执行 DDL | `NON_READONLY_STATEMENT` |
-| 敏感列 WHERE | `PREDICATE_COLUMN_REJECTED` |
-| 大查询 prod | `QUERY_COST_EXCEEDED` |
 | 同步导出 >1万行 | `EXPORT_TOO_LARGE_FOR_SYNC` |
-| JIT 到期后查询 | 恢复脱敏 |
 | 并发改 worksheet | `CONCURRENT_MODIFICATION` |
 | 审计 DB 抖动时查询 | fail-open，查询不受影响 + 告警 |
 
@@ -172,9 +164,9 @@
 - [ ] 限流参数按容量配好
 - [ ] 审计 stdout/SIEM 已对接（或 `AUDIT_STDOUT_MIRROR` 已评估）
 - [ ] 告警（审计写入失败、同步失败、连接失败）已接
-- [ ] 默认脱敏规则 + 数据分类 + 环境策略已配
+- [ ] 环境策略（行数/导出护栏）已配
 - [ ] 至少一个 OIDC/LDAP IdP 已配并验证
-- [ ] 安全测试（越权矩阵 + 脱敏绕过）已通过
+- [ ] 安全测试（越权矩阵）已通过
 - [ ] 容量/性能压测达标
 
 ---

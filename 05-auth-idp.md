@@ -20,7 +20,7 @@
 | **本地账号 / 密码** | 内置账号，bcrypt 存储；用于初始化与无 IdP 场景 | ✅ |
 | **OIDC** | OpenID Connect（Keycloak、Okta、Entra ID、Authing 等） | ✅ |
 | **LDAP** | 目录绑定 + 搜索认证（AD/OpenLDAP） | ✅ |
-| **OAuth2** | 通用 OAuth2（Google/GitHub/自建） | ✅ |
+| **OAuth2** | 通用 OAuth2（Google/GitHub/自建） | 可选增强 |
 | **邮箱验证码登录** | Passwordless，6 位码 | 可选 |
 | **SCIM 2.0 目录同步** | Entra ID / Okta 自动同步用户与组 | 可选增强 |
 | **SAML** | — | ❌ 不支持（Bytebase 亦未支持） |
@@ -84,7 +84,7 @@ FieldMapping {        // 把 IdP 返回字段映射到平台用户属性
 | **Access Token (JWT)** | HS256 签名；默认 1h；`Authorization: Bearer` 或 `access-token` Cookie |
 | **Refresh Token** | 32 字节随机，SHA256 存储；旋转刷新（非滑动续期，保留原始绝对过期） |
 | **MFA Temp Token** | 短期（5 min），登录两步之间的桥接 |
-| **Service Account Token** | 给自动化用的长期 token（API token） |
+| **Service Account Token** | （v2）给自动化用的长期 token（API token） |
 
 - **登出**：删除 refresh token、清 Cookie。
 - **改密/重置密码**：吊销该用户所有 refresh token。
@@ -110,11 +110,9 @@ FieldMapping {        // 把 IdP 返回字段映射到平台用户属性
 
 ---
 
-## 8. Service Account（服务账号）
+## 8. Service Account（服务账号）—— 不在 v1 范围
 
-- 用于自动化（BI 抽数、定时任务、CI）。
-- 持有 API token，可绑定 IAM 角色。
-- 与自然人账号分离，便于审计与回收。
+> v1 面向自然人用户，不提供 Service Account / API token（路线图见 [18 §1.6](./18-roadmap.md)）。
 
 ---
 
@@ -133,9 +131,7 @@ FieldMapping {        // 把 IdP 返回字段映射到平台用户属性
 - 本地账号/密码 + bcrypt。
 - OIDC 集成（含 discovery、组映射、JIT）。
 - LDAP 集成（StartTLS/LDAPS、bind+search）。
-- 通用 OAuth2。
 - MFA（TOTP + 恢复码 + 工作区强制 2FA）。
 - 会话/JWT/refresh token、登出、限频。
-- Service Account。
 
-**可选增强（不在本期必须范围）：** SCIM 2.0 目录同步（Entra ID/Okta）、密码策略增强、登录风险评分。
+**可选增强（不在 v1 范围，见 [18 §1.6](./18-roadmap.md)）：** 通用 OAuth2、邮箱验证码登录、SCIM 2.0 目录同步、Service Account/API token、密码策略增强、登录风险评分。
