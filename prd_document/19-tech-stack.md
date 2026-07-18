@@ -10,7 +10,7 @@
 |---|---|---|
 | 后端语言 | **Go** | 1.25+ |
 | HTTP 框架 | **chi** | `github.com/go-chi/chi/v5` v5.3.1 |
-| API 契约 | **OpenAPI 3** | 手写 `openapi.yaml`，用 **ogen** v1.23.0 生成服务端/客户端 |
+| API 契约 | **OpenAPI 3** | 手写 `openapi.yaml`，后端用 **ogen** v1.23.0 生成服务端；前端 TS 类型手写（D51） |
 | 数据库驱动 | **pgx/v5** | `github.com/jackc/pgx/v5` v5.10.0 |
 | ORM / Query Builder | **bun** | `github.com/uptrace/bun` v1.2.18 |
 | 任务队列（v1） | **进程内 Runner** | 自研，预留 `Queue` 接口，v2 可切 Redis + asynq |
@@ -72,7 +72,7 @@
 ## 4. API 契约：OpenAPI 3 + ogen
 
 ### 4.1 决策
-**API 以手写 OpenAPI 3 YAML 为唯一事实来源，服务端/客户端代码由 ogen 生成。**
+**API 以手写 OpenAPI 3 YAML 为唯一事实来源。后端 Go 服务端代码由 ogen 生成（契约 → 代码）；前端 TypeScript 类型手写（D51）。**
 
 ### 4.2 理由
 1. **满足"编程语言无关"要求**：OpenAPI 3 是语言中立的契约，任何语言都能生成客户端/服务端，PRD 明确 API 契约以 OpenAPI 3 为唯一事实来源（D38）。
@@ -83,6 +83,12 @@
 ### 4.3 放弃的备选
 - **手写 handler + kin-openapi 校验**：更灵活，但需要手动维护路径、结构体、校验逻辑，容易与契约脱节。
 - **gRPC + grpc-gateway / Connect-RPC**：Bytebase 采用此方案，但 PRD 已决定 v1 使用 HTTP/JSON，故不采纳。
+
+### 4.4 前端为何手写类型（D51）
+前端采用 React 19 + **TypeScript 7**（最新）。但 OpenAPI 的 TS codegen 工具链尚未跟上 TS7：`openapi-typescript` v7.13.0 仅支持 TS5、`@hey-api/openapi-ts` v0.99.0 仅支持到 TS6，二者均无 TS7 兼容版本。经权衡（保 TS7 + 手写 / 降 TS5 + 生成 / 隔离 codegen）后选择**保 TS7 + 手写类型**：
+- 手写请求/响应类型（`frontend/src/api/types.ts`）+ 薄类型化 fetch（`client.ts`），随契约演进手动同步。
+- 后端代码生成不受影响（ogen 是 Go 工具，与前端 TS 版本无关）。
+- 待 TS 生态支持 TS7 后，可切回 `openapi-typescript` 自动生成。
 
 ---
 

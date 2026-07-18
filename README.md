@@ -13,14 +13,40 @@
 
 ```
 dbhub/
-├── backend/            # Go 后端 API（独立 Go module，make 管理）
-├── frontend/           # React 前端（独立 pnpm 项目）
-├── openapi.yaml        # API 唯一事实来源
+├── backend/                      # Go 后端 API（独立 Go module，make 管理）
+│   ├── internal/
+│   │   ├── oas/                  # ogen 从 openapi.yaml 生成（契约 → 代码，已提交）
+│   │   ├── api/                  # Handler 适配层 + SecurityHandler（薄壳，调 service）
+│   │   └── service/              # 手写业务逻辑（领域层，可单测）
+│   ├── main.go                   # chi 横切中间件包住 ogen 服务端
+│   └── ogen.yml                  # ogen 代码生成配置
+├── frontend/                     # React 前端（独立 pnpm 项目）
+│   └── src/
+│       ├── api/                  # 手写类型 + 薄类型化 fetch（client.ts / types.ts）
+│       └── hooks/                # TanStack Query hook
+├── openapi.yaml                  # API 唯一事实来源
 ├── docker-compose.yml
 └── README.md
 ```
 
-> 后端与前端的构建、依赖、脚本完全独立，互不耦合。`openapi.yaml` 作为契约由双方各自生成代码。
+> 后端与前端的构建、依赖、脚本完全独立，互不耦合。
+
+## 契约 → 代码（API-first）
+
+`openapi.yaml` 是唯一事实来源。前后端各自从它派生传输层，业务逻辑手写。
+
+**后端（ogen 生成）**：契约 → Go 服务端（路由 / Handler 接口 / 请求响应类型 / 校验 / 安全钩子）。
+
+```bash
+cd backend
+make gen          # 从 ../openapi.yaml 重新生成 internal/oas/
+```
+
+- 生成的 `Handler` 接口由 `internal/api` 实现（嵌入 `UnimplementedHandler`，按需 override）。
+- 业务逻辑在 `internal/service`（领域层，interface + mock 注入，D50）。
+- chi 横切中间件（认证 / ACL / 审计，待实现）包在生成的服务端外层。
+
+**前端（手写类型）**：前端不自动生成类型——TypeScript 7 太新，`openapi-typescript` / `@hey-api/openapi-ts` 均不支持（见决策 D51）。改为手写请求/响应类型（`src/api/types.ts`），契约更新时手动同步；fetch 层为 `src/api/client.ts`（Cookie 会话 + CSRF 双提交 + 统一错误）。
 
 ## 开发环境
 

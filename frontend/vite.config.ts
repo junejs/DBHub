@@ -1,13 +1,20 @@
+import path from 'node:path'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      '@': path.resolve(import.meta.dirname, 'src'),
+    },
+  },
   server: {
     port: 3000,
     proxy: {
-      '/api': {
+      // API 契约路径前缀为 /v1（见 openapi.yaml）；dev 下转发到后端。
+      '/v1': {
         target: 'http://localhost:8080',
         changeOrigin: true,
       },

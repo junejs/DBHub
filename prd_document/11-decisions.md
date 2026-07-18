@@ -105,3 +105,4 @@
 | D48 | **monorepo 采用简单目录结构，不用 Turborepo/nx** | v1 应用/包少，收益不明显；保留未来引入 Turborepo 的扩展性 |
 | D49 | **v1 部署方式使用 Docker Compose** | 单组织自部署最友好，避免 K8s 复杂度；未来可迁移到 Helm |
 | D50 | **单元测试优先**：核心业务逻辑覆盖率 ≥ 80%，依赖外部资源的组件必须 interface + mock 注入 | 质量保障第一道防线；确保 IAM/审计/导出/查询等关键路径可独立、快速、稳定测试 |
+| D51 | **后端用 ogen 从 openapi.yaml 生成服务端（契约 → 代码）；前端类型手写，不做前端 codegen** | ogen 成熟、可生成可编译，契合 D38/D44 契约驱动 + 声明式安全。前端 TypeScript 7 太新，`openapi-typescript`/`@hey-api/openapi-ts` 均不支持（仅到 TS5/TS6），暂无可用 codegen；故前端手写请求/响应类型 + 薄类型化 fetch，契约更新时手动同步（待 TS 生态支持后再切回生成） |
