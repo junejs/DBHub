@@ -63,6 +63,41 @@ Solution Design ─方案文档(prd_document/design/)─→ 你（PM）
 - 标题/描述关联 **PRD `§`** + **`D##`** + **agent_team 对应章节**。
 - v1 范围纪律：凡 `prd_document/18-roadmap.md` 列出的 v2 项（脱敏/JIT/多引擎/Service Account/自定义角色/带 token 分享/定时导出/XLSX…）**不拆**，登记后标 `v2-deferred` 搁置。
 
+### 2.5 依赖、启动顺序与拆分判据
+
+**依赖类型**（决定任务能否启动）：
+
+| 依赖 | 含义 | 例 |
+|---|---|---|
+| 契约 | 下游实现需上游契约就绪 | stage 1（DDL/openapi）→ stage 2（实现） |
+| 数据 | 功能依赖前置资源已建好 | Instance → Database → Worksheet；表结构先于查询 |
+| 地基 | 多数功能依赖底层能力 | 认证/身份(05)、IAM+项目隔离(02)、资源模型(07) |
+| 验证 | Test/Review 依赖实现完成 | apply → Test + CodeReview |
+
+**启动顺序**（你从 todo 池里决定先开始哪些）：todo ≠ 立即开始。按优先级把可启动的推进 `in_progress`：
+
+1. **依赖未满足的不启动**——留 todo，comment 标 `blocked-by <issue-id>`；只有所有依赖已 `done` 的才能启动。
+2. **地基优先**——被最多下游依赖的任务先做（认证 / IAM / 资源模型），解锁的后续工作最多。
+3. **关键路径优先**——依赖链最长路径上的任务先做，缩短整体周期。
+4. **契约先行**——同 epic 内 stage 1 必须先于 stage 2（stage barrier 已保证）。
+5. **域内聚类**——同优先级按功能域聚类启动，减少 agent 上下文切换。
+
+> 输出：可启动 → `in_progress` + assign；被卡 → 留 todo + 标 `blocked-by`；真无法推进 → `blocked`。
+
+**何时拆子任务**（epic vs 单 issue）：
+
+满足**任一** → 拆成 epic + 子 issue：
+- 跨多个资源域（如同时动 Instance + Database + DataSource）
+- 一次改 >2 张表 / 多个 API 资源
+- 有可分阶段交付的设计/实现/测试边界 → 用 stage 拆（§2.2）
+- 工作量超过一个端到端切片（`IMPLEMENTATION_AGENT.md` §1 一次走不完）
+
+**不拆**（保持单 issue）：
+- 单资源 / 单表 / 一个 API 资源的 CRUD
+- 能在 `IMPLEMENTATION_AGENT.md` §1 一次走完
+
+> 一句话判据：**「一次端到端流程走得完」是单 issue 的边界；超出就拆。**
+
 ---
 
 ## 3. issue 规范
@@ -121,9 +156,10 @@ multica label create --name "epic"            --color "#495057"
 
 ### 3.4 状态流转
 ```
-backlog → todo → in_progress → in_review → done
-                ↘ blocked（标阻塞 + comment 原因 + 重新指派）
+创建即 todo → in_progress → in_review → done
+               ↘ blocked（标阻塞 + comment 原因 + 重新指派）
 ```
+- **所有 issue 创建时一律 `--status todo`**（不用 backlog）——todo 表示「已就绪、待启动」；是否**真正启动**看依赖是否满足（见 §2.5）。
 - `multica issue status <id> <status>`；合法值：`backlog todo in_progress in_review done blocked cancelled`。
 
 ### 3.5 assignee
@@ -180,11 +216,12 @@ multica issue comment add <id> --content "..."   # 记进展/阻塞；多行用 
 ## 5. 跟踪与推进流程
 
 1. **日常巡检**：`multica issue list` 看所有 `in_progress`/`blocked`；`multica issue children <epic>` 看每个 epic 的 stage 进度。
-2. **stage gate**（epic 唤醒你时）：
+2. **启动调度**：扫 todo 池，按 §2.5「启动顺序」挑依赖已满足的任务 → `in_progress` + assign；被卡的留 todo 标 `blocked-by <issue-id>`。
+3. **stage gate**（epic 唤醒你时）：
    - 核对上一 stage 产出是否达标（契约是否 `make gen` 过、实现是否单测全绿、测试是否覆盖验收标准）。
    - 通过 → 建下一 stage 子 issue 并 assign；不通过 → 把上个 issue 改回 `in_progress` + comment 指出问题，或 `blocked` 并提回对应 agent。
-3. **阻塞处理**：`status blocked` + comment 写明阻塞原因与责任人；能协调则重新指派，范围/方案问题提回 Solution Design。
-4. **验收闭环**：stage 3 的 Test + CodeReview 都 `done` 且对照 epic 验收标准逐条 ✅ → epic `done`。
+4. **阻塞处理**：`status blocked` + comment 写明阻塞原因与责任人；能协调则重新指派，范围/方案问题提回 Solution Design。
+5. **验收闭环**：stage 3 的 Test + CodeReview 都 `done` 且对照 epic 验收标准逐条 ✅ → epic `done`。
 
 ---
 
@@ -223,6 +260,8 @@ multica issue comment add <id> --content "..."   # 记进展/阻塞；多行用 
 6. 一次建完所有 stage 子 issue 让下游空跑（应分阶段建，见 §2.3）。
 7. issue 缺 `domain:*` / `phase:*` / `v1` 标签。
 8. assign 给未注册的 agent 却不备注（应 `multica agent list` 核对，未注册则暂派人工并注明）。
+9. 创建 issue 用非 todo 状态（backlog 等）——违反「创建即 todo」（§3.4）。
+10. 把依赖未满足的 todo 推进 `in_progress`，让下游空跑（违反 §2.5 启动顺序）。
 
 ---
 
