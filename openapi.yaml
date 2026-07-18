@@ -1,0 +1,119 @@
+openapi: 3.0.3
+info:
+  title: DBHUB API
+  description: 集中式数据库查询与导出平台 API
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080/v1
+    description: Local development
+
+paths:
+  /healthz:
+    get:
+      operationId: healthz
+      summary: 健康检查
+      x-requires-permission: ""
+      x-audit: false
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
+
+  /readyz:
+    get:
+      operationId: readyz
+      summary: 就绪检查
+      x-requires-permission: ""
+      x-audit: false
+      responses:
+        '200':
+          description: Ready
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ready
+
+  /auth/login:
+    post:
+      operationId: login
+      summary: 用户登录
+      x-requires-permission: ""
+      x-audit: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+
+  /projects:
+    get:
+      operationId: listProjects
+      summary: 列出项目
+      x-requires-permission: db.projects.list
+      x-audit: false
+      responses:
+        '200':
+          description: 项目列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListProjectsResponse'
+
+components:
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 12
+
+    LoginResponse:
+      type: object
+      required: [accessToken, refreshToken]
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+
+    ListProjectsResponse:
+      type: object
+      required: [projects]
+      properties:
+        projects:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+
+    Project:
+      type: object
+      required: [id, key, name]
+      properties:
+        id:
+          type: integer
+          format: int64
+        key:
+          type: string
+        name:
+          type: string
+        description:
+          type: string

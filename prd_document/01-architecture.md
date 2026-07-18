@@ -107,14 +107,14 @@ PostgreSQL 驱动
 
 | 关注点 | 方案 |
 |---|---|
-| 后端语言 | **Go 1.23+** |
+| 后端语言 | **Go 1.25+** |
 | HTTP 框架 | **chi** |
 | API 协议 | **HTTP/JSON + OpenAPI 3**，手写 `openapi.yaml`，用 **ogen** 生成服务端/客户端 |
 | 数据库驱动/ORM | **pgx/v5 + bun** |
-| 前端框架 | **React 19 + TypeScript + Vite 6 + Tailwind CSS + shadcn/ui** |
+| 前端框架 | **React 19 + TypeScript + Vite 8 + Tailwind CSS 4 + shadcn/ui** |
 | SQL 编辑器 | **Monaco Editor** |
 | 自动补全协议 | **LSP over WebSocket** |
-| 平台元数据库 | **PostgreSQL 16+** |
+| 平台元数据库 | **PostgreSQL 17+** |
 | 元数据缓存 | 进程内 LRU（v1）；可选 Redis（v2） |
 | 异步任务 | 进程内 Runner（v1），预留抽象，v2 可切 Redis + asynq |
 | 密钥管理 | 应用层 AES-256-GCM + 主密钥（环境变量/KMS）；可选外部 Secret Manager |

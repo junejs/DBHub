@@ -8,26 +8,26 @@
 
 | 层级 | 选型 | 版本 / 关键库 |
 |---|---|---|
-| 后端语言 | **Go** | 1.23+ |
-| HTTP 框架 | **chi** | `github.com/go-chi/chi/v5` |
-| API 契约 | **OpenAPI 3** | 手写 `openapi.yaml`，用 **ogen** 生成服务端/客户端 |
-| 数据库驱动 | **pgx/v5** | `github.com/jackc/pgx/v5` |
-| ORM / Query Builder | **bun** | `github.com/uptrace/bun` |
+| 后端语言 | **Go** | 1.25+ |
+| HTTP 框架 | **chi** | `github.com/go-chi/chi/v5` v5.3.1 |
+| API 契约 | **OpenAPI 3** | 手写 `openapi.yaml`，用 **ogen** v1.23.0 生成服务端/客户端 |
+| 数据库驱动 | **pgx/v5** | `github.com/jackc/pgx/v5` v5.10.0 |
+| ORM / Query Builder | **bun** | `github.com/uptrace/bun` v1.2.18 |
 | 任务队列（v1） | **进程内 Runner** | 自研，预留 `Queue` 接口，v2 可切 Redis + asynq |
 | 认证/会话 | **JWT + OIDC/LDAP** | `golang-jwt/jwt/v5`、`coreos/go-oidc`、`go-ldap/ldap/v3` |
 | JWT 签名算法 | **HS256** | v1 单服务，对称密钥足够；未来多服务再切 RS256 |
 | 密码哈希 | **bcrypt** | 本地账号密码存储 |
 | ZIP 加密 | **alexmullins/zip** | Go 标准 zip 不支持密码加密 |
-| 前端框架 | **React** | 19 |
-| 前端运行时 | **Node.js** | 20+ |
-| 前端构建 | **Vite** | 6 |
-| 样式/UI | **Tailwind CSS + shadcn/ui** | Tailwind v4 |
-| 前端状态管理 | **TanStack Query + Zustand** | Query 管服务端状态，Zustand 管本地状态 |
-| i18n | **react-i18next** | 中英双语（D23） |
+| 前端框架 | **React** | 19.2.7 |
+| 前端运行时 | **Node.js** | 24+ |
+| 前端构建 | **Vite** | 8.1.5 |
+| 样式/UI | **Tailwind CSS 4.3 + @tailwindcss/vite** | shadcn/ui 按需复制 |
+| 前端状态管理 | **TanStack Query 5.101 + Zustand 5.0** | Query 管服务端状态，Zustand 管本地状态 |
+| i18n | **react-i18next 17.0** | 中英双语（D23） |
 | SQL 编辑器 | **Monaco Editor** | `@codingame/monaco-vscode-api` + `monaco-editor` |
 | LSP 客户端 | **monaco-languageclient** | 连接 Monaco 到后端 LSP over WebSocket |
 | LSP 协议 | **WebSocket** | 标准库 `net/http` + `gorilla/websocket` |
-| 平台数据库 | **PostgreSQL** | 16+ |
+| 平台数据库 | **PostgreSQL** | 17+ |
 | Monorepo 组织 | **简单目录结构** | 不用 Turborepo/nx |
 | 包管理 | **pnpm** | 9+ |
 | 部署 | **Docker Compose** | v1 唯一部署方式 |
@@ -136,17 +136,17 @@
 
 ---
 
-## 8. 前端：React 19 + Vite + Tailwind + shadcn/ui
+## 8. 前端：React 19 + Vite 8 + Tailwind CSS 4
 
 ### 8.1 决策
-**前端框架使用 React 19，构建工具 Vite 6，样式使用 Tailwind CSS v4，组件库使用 shadcn/ui。**
+**前端框架使用 React 19.2，构建工具 Vite 8.1，样式使用 Tailwind CSS 4.3 + @tailwindcss/vite，组件库使用 shadcn/ui。**
 
 ### 8.2 理由
 1. **React 适合复杂工作台**：SQL 编辑器、资源树、结果表格、导出中心、审计筛选等交互密集场景，React 的组件生态（虚拟化、拖拽、分栏、表格）更成熟。
-2. **Vite 构建快**：冷启动、HMR、构建速度都显著优于 CRA/Webpack，提升开发体验。
-3. **Tailwind + shadcn/ui**：不绑定单一组件库，可定制；shadcn/ui 的组件以源码形式复制到项目，避免版本锁定和黑盒。
-4. **状态管理**：**TanStack Query** 负责服务端状态（缓存、重试、失效），**Zustand** 负责本地 UI 状态，分工清晰。
-5. **i18n**：**react-i18next** 成熟稳定，满足 PRD 中英双语要求（D23）。
+2. **Vite 8 构建快**：冷启动、HMR、构建速度都显著优于 CRA/Webpack；v8 使用 Lightning CSS，构建性能进一步提升。
+3. **Tailwind CSS 4 + @tailwindcss/vite**：Tailwind v4 改用 CSS-first 配置，通过 Vite 插件集成，构建更快、配置更简洁。
+4. **状态管理**：**TanStack Query 5.101** 负责服务端状态（缓存、重试、失效），**Zustand 5.0.14** 负责本地 UI 状态，分工清晰。
+5. **i18n**：**react-i18next 17.0** 成熟稳定，满足 PRD 中英双语要求（D23）。
 6. **Bytebase 已验证**：Bytebase 从 Vue 迁移到 React 19 + Vite + Tailwind，证明该组合能支撑数据库管理这类复杂后台。
 
 ### 8.3 放弃的备选
@@ -168,10 +168,10 @@
 
 ---
 
-## 10. 平台数据库：PostgreSQL 16+
+## 10. 平台数据库：PostgreSQL 17+
 
 ### 10.1 决策
-**平台自身元数据库使用 PostgreSQL 16+。**
+**平台自身元数据库使用 PostgreSQL 17+。**
 
 ### 10.2 理由
 1. **PRD 已定**：v1 仅支持 PostgreSQL 引擎，平台元数据库也使用 PG，统一技术栈。
@@ -225,8 +225,8 @@ dbhub/
 | 服务 | 基础镜像 | 理由 |
 |---|---|---|
 | Go 后端 | **distroless** 或 **alpine** | 极小攻击面；distroless 更轻，alpine 调试用 shell 更方便 |
-| 前端 | **node:20-alpine**（构建阶段）+ **nginx:alpine** 或 **distroless**（运行阶段） | 构建用 Node，运行用静态服务器 |
-| 平台数据库 | **postgres:16-alpine** | 与开发/生产版本一致 |
+| 前端 | **node:24-alpine**（构建阶段）+ **nginx:alpine** 或 **distroless**（运行阶段） | 构建用 Node，运行用静态服务器 |
+| 平台数据库 | **postgres:17-alpine** | 与开发/生产版本一致 |
 
 ---
 
