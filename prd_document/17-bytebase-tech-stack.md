@@ -1,7 +1,7 @@
 # 17 — Bytebase 技术选型清单（参考）
 
-> 本文档记录 Bytebase 实际使用的技术栈（取自其 `go.mod` / `frontend/package.json`），供我们做技术选型时参考。**Bytebase 是参考对象，不是抄写对象**——我们按自己的规模与诉求取舍（见末节）。
-
+> 本文档记录 Bytebase 开源项目实际使用的技术栈（取自其 `go.mod` / `frontend/package.json`），供我们做技术选型时参考。**Bytebase 是参考对象，不是抄写对象**——我们按自己的规模与诉求取舍（见末节）。
+禁止修改次文档，READ ONLY!!
 ---
 
 ## 1. 总览

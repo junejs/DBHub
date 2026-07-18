@@ -1,6 +1,6 @@
 # 10 — 数据模型
 
-> 平台自身元数据库（PostgreSQL）的表结构设计。原则：**简洁、规范、可扩展**。Bytebase 仅作思路参考——其 JSONB proto blob、store/API 双份 proto、workspace 多租户等历史包袱**一律不照搬**。这是一个新项目，无兼容性约束。
+> 平台自身元数据库（PostgreSQL）的表结构设计。原则：**简洁、规范、可扩展**。Bytebase 仅作思路参考——其 JSONB 序列化大对象、store/API 双份 schema、workspace 多租户等历史包袱**一律不照搬**。这是一个新项目，无兼容性约束。
 
 ---
 
@@ -172,8 +172,7 @@ create table environment_policies (
   environment_id        bigint primary key references environments(id),
   query_row_limit       int,                         -- 单次查询默认行数上限
   export_max_rows       bigint,                      -- 单次导出行数上限
-  export_require_approval boolean not null default false,  -- 导出是否需审批
-  settings              jsonb not null default '{}'  -- 扩展位
+  settings              jsonb not null default '{}'  -- 扩展位（含结果字节上限、并发查询数等运行时策略）
 );
 
 -- 实例（一个物理 DB 连接；【归属且仅归属一个项目】，由该项目管理）
@@ -479,11 +478,11 @@ insert into environments(key,name,protection_level,color,rank) values
   ('dev',  'Development', 10, '#00703c', 10);
 
 -- 环境级策略（示例：prod 最严，dev 最宽松）
-insert into environment_policies(environment_id, query_row_limit, export_max_rows, export_require_approval) values
-  ((select id from environments where key='prod'),  1000, 100000, true),
-  ((select id from environments where key='stage'), 5000, 500000, false),
-  ((select id from environments where key='test'),  10000,1000000,false),
-  ((select id from environments where key='dev'),   10000,1000000,false);
+insert into environment_policies(environment_id, query_row_limit, export_max_rows) values
+  ((select id from environments where key='prod'),  1000, 100000),
+  ((select id from environments where key='stage'), 5000, 500000),
+  ((select id from environments where key='test'),  10000,1000000),
+  ((select id from environments where key='dev'),   10000,1000000);
 
 -- role_permissions 由代码注册表灌入（权限常量集中维护）
 ```

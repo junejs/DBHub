@@ -87,3 +87,7 @@
 | D35 | **不做自定义角色**（v1 仅预置角色） | 8 个预置角色已覆盖；自定义角色的 CRUD/权限子集/审计成本不值得 |
 | D36 | **收藏/分享简化**：收藏即星标；可见性 PRIVATE/PROJECT；延后 folder/pin/note、ShareLink token、PROJECT_WRITE/LINK | 效率功能非安全核心；项目可见性已覆盖团队共享 |
 | D37 | **认证/导出多项延后 v2**：Service Account/PAT、OAuth2、邮箱验证码登录、XLSX、SQL(INSERT) 导出格式 | 产品面向自然人查询/导出；CSV/JSON + OIDC/LDAP + 本地账号已够；按需再加 |
+| D38 | **API 契约以 OpenAPI 3（HTTP/JSON）为唯一事实来源**，不预设后端语言/框架 | 满足「编程语言无关」要求；权限/审计以 `x-` 扩展声明，任何语言都能实现 |
+| D39 | **查询结果用 unary + keyset 游标分页**，不用 gRPC server-streaming | 与 HTTP/JSON 主契约一致；多语句结果集按语句分页，实现更简单通用 |
+| D40 | **导出 ZIP 密码仅用户自设**，平台不存储、不下发；下载时流式解密校验 | v1 无安全密码下发通道；避免产物密码落入审计/通知等不可控路径 |
+| D41 | **手动 Schema 同步即时返回（202 + 当前 sync_status），后台异步执行**；不引入 LRO/Operation 轮询 | 同步非实时、可耗时；懒刷新模型已接受即时返回；减少契约复杂度 |
