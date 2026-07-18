@@ -1,0 +1,9 @@
+# agent_team -> multica agent mapping
+# columns (TAB-separated): file <TAB> name <TAB> description
+# Lines starting with '#' and blank lines are ignored.
+# To add an agent: add a row here and drop its *_AGENT.md into agent_team/.
+PM_AGENT.md	DBHUB Project Manager	方案与执行之间的调度层：消费 Solution Design 的方案，拆成 multica issue 树、分配给各 agent，跟踪状态推进到闭环。
+SOLUTION_DESIGN_AGENT.md	DBHUB Solution Design	把产品/功能需求转化为可执行的方案设计：数据结构（DB 表/字段/索引/约束）、API（openapi 资源/schema/错误码）、技术方案与决策记录。
+IMPLEMENTATION_AGENT.md	DBHUB Implementation	全栈实现：从 openapi.yaml 契约到后端 Go + 前端 React/TS + 两端单测，作为单个 PR 交付。
+TEST_AGENT.md	DBHUB Test	功能与集成测试：真实 PostgreSQL 端到端链路、契约符合性、越权矩阵、边界异常、审计完整性、性能阈值与验收。
+CODEREVIEW_AGENT.md	DBHUB CodeReview	架构守门人 + 一致性审计员：在 PR/diff 上拦截 CI 全绿却暗藏的安全洞与长期技术债。
