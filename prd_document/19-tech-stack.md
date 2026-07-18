@@ -238,10 +238,43 @@ dbhub/
 | Go 迁移 | **golang-migrate** / **goose** | 标准迁移工具，支持版本化 SQL 迁移 |
 | Go Lint | **golangci-lint** | 行业标准，规则丰富 |
 | 前端 Lint/Format | **Biome** | 速度快，统一 lint + format |
-| 测试（后端） | **testify** + 集成测试用 Docker PG | 标准组合 |
-| 测试（前端） | **Vitest** + **Playwright** | 单元 + e2e |
+| 测试（后端） | **testify** + **gomock** / **mockery** + **testcontainers-go** | testify 标准断言；gomock/mockery 生成接口 mock；testcontainers 跑真 PG 集成测试 |
+| 测试（前端） | **Vitest** + **@testing-library/react** + **MSW** + **Playwright** | Vitest 单元/组件测试；MSW 模拟 API；Playwright e2e |
+| 测试原则 | **单元测试优先**；关键路径覆盖率 ≥ 80%；权限/审计/导出必须单测覆盖 | 见 [16 §7](./16-ops.md) |
 | 日志 | **slog**（Go 标准库） | 结构化日志，无需第三方依赖 |
 | 配置 | **koanf** | 轻量，支持 env/file/flag 多层配置 |
+
+### 13.1 单元测试策略（重点）
+
+> 单元测试是 v1 质量保障的第一道防线。所有业务逻辑必须可在不依赖外部服务（数据库、IdP、文件系统）的情况下进行单元测试。
+
+**后端单元测试原则：**
+
+1. **接口驱动设计**：所有依赖外部资源（DB、IdP、存储、缓存）的组件通过 Go interface 注入，测试时使用 mock 实现。
+2. **表驱动测试**：对权限判定、SQL 多语句切分、环境策略解析、导出格式转换等组合爆炸场景，使用 testify + 表驱动覆盖正例/反例/边界。
+3. **必测模块**：
+   - IAM 引擎（角色解析、权限集合、结构化条件匹配）
+   - 审计拦截器（事件生成、敏感字段脱敏、不可取消 context）
+   - SQL parser（多语句切分、只读判断、语法诊断）
+   - 导出格式化器（CSV/JSON 转义、空值、二进制、大字段截断）
+   - 环境策略解析（行数/字节/并发/导出上限）
+   - 登录锁定逻辑（窗口、阈值、解锁）
+4. **Mock 工具**：`gomock` 或 `mockery` 自动生成接口 mock；避免手写大量 mock 样板。
+5. **覆盖率门槛**：
+   - 核心业务逻辑（IAM、审计、导出、查询、同步）≥ **80%**
+   - 工具类/胶水代码 ≥ **60%**
+   - 不追求 100%，但关键路径必须覆盖。
+
+**前端单元测试原则：**
+
+1. **组件级测试**：使用 `@testing-library/react` + Vitest 测试表单校验、权限按钮显隐、表格渲染、错误状态。
+2. **状态逻辑测试**：Zustand store、TanStack Query hook 封装单独测试。
+3. **API 层测试**：MSW（Mock Service Worker）拦截 HTTP/WebSocket，测试请求/响应处理、错误码映射。
+4. **不测试第三方库**：Monaco、图表库等不做单元测试，依赖 e2e/手动验证。
+
+**测试组织：**
+- 单测文件与源码同目录，命名 `*_test.go` / `*.test.tsx`。
+- CI 中 `go test ./...` 与 `vitest run` 必须全部通过，覆盖率未达标阻塞合并。
 
 ---
 

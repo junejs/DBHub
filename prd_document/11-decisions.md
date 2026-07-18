@@ -104,3 +104,4 @@
 | D47 | **前端使用 React 19 + Vite 6 + Tailwind CSS + shadcn/ui** | 复杂工作台生态成熟、构建快、可定制、Bytebase 已验证 |
 | D48 | **monorepo 采用简单目录结构，不用 Turborepo/nx** | v1 应用/包少，收益不明显；保留未来引入 Turborepo 的扩展性 |
 | D49 | **v1 部署方式使用 Docker Compose** | 单组织自部署最友好，避免 K8s 复杂度；未来可迁移到 Helm |
+| D50 | **单元测试优先**：核心业务逻辑覆盖率 ≥ 80%，依赖外部资源的组件必须 interface + mock 注入 | 质量保障第一道防线；确保 IAM/审计/导出/查询等关键路径可独立、快速、稳定测试 |
