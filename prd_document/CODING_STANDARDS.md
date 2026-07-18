@@ -202,11 +202,14 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build
 
 ---
 
-## 8. Git / 提交 / 分支
+## 8. Git / 提交 / 分支（详见 [BRANCH_STRATEGY.md](./BRANCH_STRATEGY.md)）
 
-- **分支**：从 `main` 拉 feature 分支（`feat/...`、`fix/...`、`prd/...`）；不直接推 `main`。
+> 分支模型、PR 流程、合并方式、`main` 保护规则的权威来源是 [BRANCH_STRATEGY.md](./BRANCH_STRATEGY.md)。Git 相关冲突以该文为准。
+
+- **分支模型**：GitHub Flow——唯一长期分支 `main`（受保护、始终可部署）；从最新 `main` 拉 `<type>/<scope>-<desc>` 工作分支（`feat/...`、`fix/...`、`prd/...`、`docs/...`、`refactor/...`、`test/...`、`chore/...`、`hotfix/...`）；**不引入 `develop`/`release` 分支**。
 - **提交信息**：Conventional Commits（`feat:`/`fix:`/`docs:`/`refactor:`/`test:`/`chore:`），首行 ≤ 72 字符，正文说明"为什么"。
 - **原子提交**：一次提交一个关注点；生成代码（`internal/oas`）与手写逻辑可分提交以便审查。
+- **合并**：默认 **squash merge**（一 PR 一语义提交，`main` 历史线性）；不用 merge commit。
 - **PR**：须通过两侧 lint + test + build；描述含动机、测试方式、影响面。
 
 ---

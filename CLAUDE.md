@@ -140,6 +140,11 @@ Path alias: `@` → `src`. Dev requests to `/v1` are proxied to the backend at `
 - **Generated code is off-limits**: editing `internal/oas/*` by hand is wasted work.
 - **Security is not yet implemented**: `internal/api/security.go` is a **passthrough placeholder that accepts any credential**, and the auth/ACL/audit chi middleware is a TODO. The declarative `x-requires-permission`/`x-audit` enforcement layer must exist before any deployment.
 
-## Git
+## Git (GitHub Flow — see [prd_document/BRANCH_STRATEGY.md](prd_document/BRANCH_STRATEGY.md))
 
-Conventional Commits (`feat:`/`fix:`/`docs:`/`refactor:`/`test:`/`chore:`), first line ≤ 72 chars, body explains *why*. Branch from `main` (`feat/…`, `fix/…`, `prd/…`); don't push directly to `main`. Keep commits atomic (one concern each); generated `internal/oas` changes can be split from hand-written logic to ease review.
+**GitHub Flow**: one protected long-lived branch, `main` (always deployable, always green). Everything else is a short-lived feature branch → PR → CI → review → **squash merge** → delete branch. No `develop`/`release` branches; environments come from config, not branches.
+
+- **Branch naming**: `<type>/<scope>-<desc>` off latest `main` — `feat/…`, `fix/…`, `prd/…`, `docs/…`, `refactor/…`, `test/…`, `chore/…`, `hotfix/…`. One concern per branch.
+- **Commits**: Conventional Commits (`feat:`/`fix:`/`docs:`/`refactor:`/`test:`/`chore:`/`perf:`/`build:`/`ci:`/`revert:`), first line ≤ 72 chars, body explains *why*; keep commits atomic. The squash-merge commit's `type` matches the branch prefix.
+- **PRs**: must pass both sides' CI (backend `lint`/`test` + frontend `lint`/`typecheck`/`test`/`build` + contract-consistency `internal/oas` not stale); ≥ 1 approval (2 for security/audit/IAM/query/export paths). Merge default is **squash**; no merge commits on `main`.
+- **Generated code** (`internal/oas`): may be a separate commit within the PR for easier review; must not lag `openapi.yaml` (CI blocks it). Don't push directly to `main`.
