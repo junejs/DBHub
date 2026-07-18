@@ -26,13 +26,13 @@
 | [09-sql-favorite-share.md](./09-sql-favorite-share.md) | SQL 收藏与分享 | 个人收藏（星标）、基于 Worksheet 可见性的安全分享 |
 | [10-data-model.md](./10-data-model.md) | 数据模型 | 平台元数据库表结构（简洁可扩展，PostgreSQL DDL） |
 | [11-decisions.md](./11-decisions.md) | 决策记录 | 所有关键产品/架构决策及理由（交付团队必读） |
-| [12-api-contract.md](./12-api-contract.md) | API 契约 | 资源命名、通用约定、错误码目录、各服务 proto（前后端并行依据） |
+| [12-api-contract.md](./12-api-contract.md) | API 契约 | 资源命名、通用约定、错误码目录、OpenAPI 路径与 JSON Schema（前后端并行依据） |
 | [13-sequences.md](./13-sequences.md) | 核心时序图 | 登录、查询执行、异步导出三条端到端流程（Mermaid；JIT 延后 v2） |
 | [14-edge-cases.md](./14-edge-cases.md) | 边界条件与异常处理 | 删除级联、并发、分页、断连恢复、会话边界、审计容错 |
 | [15-ui.md](./15-ui.md) | UI 页面清单与线框 | 页面清单、核心页 ASCII 线框、交互状态约定（前端依据） |
 | [16-ops.md](./16-ops.md) | 部署/安全/容量/测试 | 配置项、安全参数数值、容量假设、可观测、备份、测试策略、上线清单 |
-| [17-bytebase-tech-stack.md](./17-bytebase-tech-stack.md) | Bytebase 技术选型（参考） | Bytebase 实际技术栈清单 + 对我们系统的借鉴取舍 |
 | [18-roadmap.md](./18-roadmap.md) | 路线图（v2 及未来） | 不在 v1 范围的能力统一说明：v2 方向、未来延伸、永久边界 |
+| [19-tech-stack.md](./19-tech-stack.md) | 技术选型决策 | v1 完整技术栈、选型理由、风险与取舍 |
 
 ---
 

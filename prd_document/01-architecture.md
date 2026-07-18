@@ -101,20 +101,26 @@ PostgreSQL 驱动
 
 > 安全建议：即便只做查询，也优先要求每个实例配置独立只读账号，避免查询走管理员连接。
 
-## 4. 技术选型建议（可调整）
+## 4. 技术选型
 
-| 关注点 | 推荐方案 | 备选 / 说明 |
-|---|---|---|
-| 后端语言 | **不限**（Go / Java / Rust / Python / Node 均可） | 与 API 契约解耦；按团队技术栈与 PG 驱动成熟度自行选定 |
-| API 协议 | **HTTP/JSON + OpenAPI 3**（唯一事实来源） | 权限/审计以 `x-` 扩展声明；客户端/服务端桩可由任意语言生成（见 [12](./12-api-contract.md)） |
-| 前端框架 | **Vue 3 + TypeScript** 或 React | Bytebase 为 Vue→React 迁移中，二者皆可 |
-| SQL 编辑器 | **Monaco Editor** | 行业标准，支持自定义语言、LSP |
-| 自动补全协议 | **LSP over WebSocket** | 真实语言服务器协议，补全质量高 |
-| 平台元数据库 | **PostgreSQL** | JSONB 存储半结构化策略；支持表达式索引加速审计查询 |
-| 元数据缓存 | 进程内 LRU + 可选 Redis | schema 读多写少，缓存命中率极高 |
-| 异步任务 | 内置 Runner（进程内任务调度） | 不引入 Kafka，保持单机简单 |
-| 密钥管理 | 应用层 AES-256-GCM + 主密钥（环境变量/KMS）；可选外部 Secret Manager（Vault / AWS SM / 阿里云 KMS） | 连接凭据不入明文；`secret_ref` 非空时走外部密钥（D25） |
-| 身份集成 | 内置 OIDC/LDAP | 见 [05-auth-idp.md](./05-auth-idp.md) |
+> 最终选型及详细理由见 [19-tech-stack.md](./19-tech-stack.md)。本节为摘要。
+
+| 关注点 | 方案 |
+|---|---|
+| 后端语言 | **Go 1.25+** |
+| HTTP 框架 | **chi** |
+| API 协议 | **HTTP/JSON + OpenAPI 3**，手写 `openapi.yaml`，用 **ogen** 生成服务端/客户端 |
+| 数据库驱动/ORM | **pgx/v5 + bun** |
+| 前端框架 | **React 19 + TypeScript + Vite 8 + Tailwind CSS 4 + shadcn/ui** |
+| SQL 编辑器 | **Monaco Editor** |
+| 自动补全协议 | **LSP over WebSocket** |
+| 平台元数据库 | **PostgreSQL 17+** |
+| 元数据缓存 | 进程内 LRU（v1）；可选 Redis（v2） |
+| 异步任务 | 进程内 Runner（v1），预留抽象，v2 可切 Redis + asynq |
+| 密钥管理 | 应用层 AES-256-GCM + 主密钥（环境变量/KMS）；可选外部 Secret Manager |
+| 身份集成 | 内置 OIDC/LDAP |
+| Monorepo | 简单目录结构，不用 Turborepo/nx |
+| 部署 | **Docker Compose**（v1 唯一方式） |
 
 ## 5. 部署形态
 

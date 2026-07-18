@@ -600,3 +600,18 @@ X-CSRF-Token: <token>
 - 自定义扩展 `x-requires-permission` / `x-audit` / `x-auth-method` / `x-allow-without-credential` 在 `openapi.yaml` 的 `components`/操作级声明,由服务端横切层在请求处理前读取并强制;具体实现语言与框架不限。
 - LSP 补全为独立 WebSocket 契约(§6.15),语言中立。
 - 尚未细化的点(各 CRUD 的完整字段、所有 List/Search 的 filter 形状)按 Google AIP 与本文约定补齐即可,不构成长期歧义。
+
+---
+
+## 9. `openapi.yaml` 落地约定(codegen 实现)
+
+> 本节说明设计文档中的「资源名简写」在可生成 `openapi.yaml` 里的**具体物化形式**,二者语义一致,仅路径表达不同。
+
+- **路径用具体段,不用 `{name=...}` 模板**:OpenAPI 3 的 path templating 仅允许 `{var}`(整段为变量),不支持 `{name=projects/*/instances/*}`。故查询/导出写作
+  `POST /v1/projects/{project}/instances/{instance}/databases/{database}:query`,每个路径段为独立参数。
+- **自定义动词 `:verb` 为字面路径段**:如 `:sync`、`:download`、`:undelete`、`:favorite`、`:test`、`:search`,codegen 视作普通字面段,可被 ogen 路由识别。
+- **资源名含 `/` 的方法,`resource` 走请求体**:IAM(`{resource}:getIamPolicy` 等)与审计(`{parent}/auditLogs:search`)的目标资源名含 `/`,无法用单一路径段表达,统一挂在 `/v1/iam:verb` 与 `/v1/auditLogs:verb`,目标资源名放请求体 `resource` / `parent` 字段(请求体 schema 本已含此字段)。
+- **每个操作必有唯一 `operationId`**(codegen 据此生成方法名),声明式 `x-requires-permission` / `x-audit` / `x-auth-method` / `x-allow-without-credential` 作为操作级扩展由横切层读取。
+- **鉴权**:`bearerAuth`(JWT)+ `cookieAuth`(HTTP-only Cookie);公开操作(登录、刷新、CSRF、环境/IdP 公开读)以 `security: []` 标注。CSRF 头取规范形 `X-Csrf-Token`(HTTP 头大小写不敏感,与 `X-CSRF-Token` 等价)。
+- **LSP 不入 REST 清单**:`wss://<host>/v1/lsp`(JSON-RPC 2.0)为独立契约(§6.15)。
+- **可生成性已验证**:该 `openapi.yaml` 经 redocly 校验通过,并可由 **ogen** 成功生成服务端/客户端/路由/schema 并编译通过——即真正的 API-first(契约 → 代码)。

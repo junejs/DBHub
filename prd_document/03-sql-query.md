@@ -140,10 +140,10 @@ QueryResult:
 | 权限校验 | 粗粒度 `db.sql.select` + 细粒度结构化条件（库/表/环境）+ 项目隔离 |
 | 只读强制 | 只读数据源下拒绝 DDL/DML/非只读语句 |
 | 行数上限 | 单次结果默认上限（如 1000 行），由 `environment_policies.query_row_limit` 决定；超过引导导出 |
-| 结果大小上限 | 单结果集字节上限（防 OOM/滥用） |
+| 结果字节上限 | 单结果集字节上限（防 OOM/滥用），运行时策略入 `environment_policies.settings` 或 `settings` |
 | 超时 | 单语句超时（默认 30s），保护业务库 |
 | 重试与停止 | 默认遇错停止；支持语句级重试 |
-| 并发限制 | 单用户/单库并发查询数限制 |
+| 并发限制 | 单用户/单库并发查询数限制，运行时策略入 `environment_policies.settings` 或 `settings` |
 
 ---
 
@@ -153,8 +153,8 @@ QueryResult:
 
 - **语句超时**（默认 30s）：慢查询被数据库直接中断。
 - **行数上限**（`environment_policies.query_row_limit`，prod 最严）：结果超限截断并引导走导出。
-- **结果字节上限**：防 OOM。
-- **并发限制 + 只读连接**。
+- **结果字节上限**、**并发限制**：作为运行时策略入 `environment_policies.settings` 或 `settings`，模型层不新增表。
+- **只读连接**。
 
 三者叠加即可覆盖绝大多数"拖垮业务库"的场景。EXPLAIN 成本护栏延后到有明确需求时再评估。
 

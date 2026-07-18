@@ -113,7 +113,7 @@ role=sqlEditorReadUser, members=[group:prod-dbas],
 condition={ environments: ["prod"] }
 ```
 
-环境还是**查询/导出护栏**的差异化维度（行数上限、导出审批等，见 [03](./03-sql-query.md)、[04](./04-data-export.md)），由 `environment_policies` 表集中配置（prod 最严、dev 最宽松）。
+环境还是**查询/导出护栏**的差异化维度（行数上限等运行时策略，见 [03](./03-sql-query.md)、[04](./04-data-export.md)），由 `environment_policies` 表集中配置（prod 最严、dev 最宽松）。v1 不引入导出审批。
 
 ### 3.3 结构化条件维度
 

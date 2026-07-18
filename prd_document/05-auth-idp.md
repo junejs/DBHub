@@ -88,7 +88,7 @@ FieldMapping {        // 把 IdP 返回字段映射到平台用户属性
 
 - **登出**：删除 refresh token、清 Cookie。
 - **改密/重置密码**：吊销该用户所有 refresh token。
-- **限频防爆破**：密码 10 次/10min、MFA 5 次/5min 失败锁定（参考审计日志计数）。
+- **限频防爆破**：密码 10 次/10min、MFA 5 次/5min 失败锁定（由 `login_attempts` 表同步计数与锁定，见 [10 §3.1](./10-data-model.md)；审计日志仅作事后留痕，不作为锁定判据）。
 
 ---
 

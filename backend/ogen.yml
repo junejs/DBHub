@@ -1,0 +1,15 @@
+# ogen 代码生成配置（契约 → Go 代码）
+# 文档：https://ogen.dev/
+# 重新生成：在 backend/ 下执行 `make gen`
+#
+# 说明：
+# - target/package/clean 是命令行参数（见 Makefile 的 gen 目标），不在配置里。
+# - ogen v1 只有一种服务端生成风格（自带 router，返回 http.Handler），
+#   在 main.go 中通过 chi 的 Mount 挂到 /v1 之下；认证/ACL/审计横切中间件包在外层。
+# - v1 不生成 Go 客户端（前端是 TS，从同一份 openapi.yaml 生成类型）。
+
+generator:
+  features:
+    disable:
+      - paths/client       # 不生成 Go 客户端
+      - webhooks/client

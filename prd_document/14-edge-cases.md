@@ -84,7 +84,7 @@
 | 改密 / 重置密码 | 吊销该用户所有 refresh token | — |
 | 登出 | 删 refresh + 清 Cookie | — |
 | MFA temp token 过期(>5min) | 要求重新登录第一步 | `AUTH_MFA_INVALID` |
-| 登录失败次数超限 | 锁定(密码 10/10min,MFA 5/5min) | `AUTH_ACCOUNT_LOCKED` |
+| 登录失败次数超限 | 锁定（密码 10/10min,MFA 5/5min；由 `login_attempts(identifier, channel)` 同步判定） | `AUTH_ACCOUNT_LOCKED` |
 | 查询/导出触发限流 | 拒绝 + `Retry-After` | `RESOURCE_EXHAUSTED RATE_LIMITED` |
 
 ---
