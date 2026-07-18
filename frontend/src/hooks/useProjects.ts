@@ -1,12 +1,12 @@
-import { useQuery } from '@tanstack/react-query'
-import { listProjects } from '@/api/projects'
+import { useQuery } from "@tanstack/react-query";
+import { listProjects } from "@/api/projects";
 
 /** query key 工厂，便于按需失效/预取。 */
 export const projectsKeys = {
-  all: ['projects'] as const,
+  all: ["projects"] as const,
   list: (params: { pageSize?: number; pageToken?: string }) =>
-    ['projects', 'list', params] as const,
-}
+    ["projects", "list", params] as const,
+};
 
 /**
  * useProjects — 列出项目。
@@ -16,9 +16,6 @@ export function useProjects(params: { pageSize?: number; pageToken?: string } = 
   return useQuery({
     queryKey: projectsKeys.list(params),
     queryFn: ({ signal }) =>
-      listProjects(
-        { page_size: params.pageSize, page_token: params.pageToken },
-        signal,
-      ),
-  })
+      listProjects({ page_size: params.pageSize, page_token: params.pageToken }, signal),
+  });
 }

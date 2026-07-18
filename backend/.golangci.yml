@@ -1,0 +1,52 @@
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck      # 必须检查返回的 error
+    - govet         # go vet 检查
+    - ineffassign   # 无效赋值
+    - staticcheck   # 综合静态分析
+    - unused        # 未使用代码
+    - gofmt         # 格式
+    - goimports     # import 分组与排序
+    - revive        # Go 代码规范（替代 golint）
+    - gocritic      # 代码改进建议
+    - misspell      # 拼写
+    - unconvert     # 多余类型转换
+    - bodyclose     # http.Response.Body 必须关闭
+    - rowserrcheck  # sql.Rows.Err 必须检查（配合 database/sql）
+
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+  revive:
+    rules:
+      - name: exported
+        arguments:
+          - "checkPrivateReceivers"
+          - "sayRepetitiveInsteadOfStutters"
+        disabled: true # 生成代码（ogen）命名不受此约束
+  errcheck:
+    check-type-assertions: false
+    check-blank: false
+
+issues:
+  # 生成代码不纳入 lint（ogen 产出，重新生成会覆盖）
+  exclude-rules:
+    - path: internal/oas
+      linters:
+        - errcheck
+        - govet
+        - staticcheck
+        - unused
+        - revive
+        - gocritic
+        - gosec
+        - ineffassign
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-use-default: true

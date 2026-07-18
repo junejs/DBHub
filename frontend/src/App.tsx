@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState } from "react";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [count, setCount] = useState(0);
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -15,7 +15,7 @@ function App() {
         count is {count}
       </button>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

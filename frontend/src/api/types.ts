@@ -4,43 +4,43 @@
 
 /** 统一错误响应（openapi.yaml#/components/schemas/Error）。 */
 export interface ApiError {
-  code: number
-  message: string
-  details?: ErrorDetail[]
+  code: number;
+  message: string;
+  details?: ErrorDetail[];
 }
 
 export interface ErrorDetail {
-  '@type'?: string
-  reason?: string
-  domain?: string
-  metadata?: Record<string, string>
-  field_violations?: FieldViolation[]
+  "@type"?: string;
+  reason?: string;
+  domain?: string;
+  metadata?: Record<string, string>;
+  field_violations?: FieldViolation[];
 }
 
 export interface FieldViolation {
-  field: string
-  description: string
+  field: string;
+  description: string;
 }
 
 /** 通用分页入参（openapi.yaml page_size / page_token）。 */
 export interface PageParams {
-  page_size?: number
-  page_token?: string
+  page_size?: number;
+  page_token?: string;
 }
 
 // ───────────────────────── Project ─────────────────────────
 
 export interface Project {
-  name?: string // projects/{key}
-  key?: string
-  title?: string
-  description?: string
-  settings?: Record<string, unknown>
-  create_time?: string
-  update_time?: string
+  name?: string; // projects/{key}
+  key?: string;
+  title?: string;
+  description?: string;
+  settings?: Record<string, unknown>;
+  create_time?: string;
+  update_time?: string;
 }
 
 export interface ListProjectsResponse {
-  items: Project[]
-  next_page_token?: string
+  items: Project[];
+  next_page_token?: string;
 }

@@ -89,6 +89,11 @@ pnpm test
 
 ## 文档
 
+工程规范（项目根目录）：
+
+- [CODING_STANDARDS.md](CODING_STANDARDS.md) — 前后端编码规范
+- [GLOSSARY.md](GLOSSARY.md) — 业务术语表（统一语言，命名/DB 设计参考）
+
 详细设计见 `prd_document/` 目录，关键文档：
 
 - [19-tech-stack.md](prd_document/19-tech-stack.md) — 技术选型决策
