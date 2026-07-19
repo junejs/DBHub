@@ -42,8 +42,8 @@ Test             ─集成/验收─┘（你的审查与 Test 的测试互补�
 | 设计契约/范围 | `SOLUTION_DESIGN_AGENT.md` §2 设计纪律 + §6 红线 |
 | 命名/术语 | `GLOSSARY.md` §2 术语 · §6 禁用词 |
 | 编码底线 | `CODING_STANDARDS.md` §2 分层 · §5 共享约定 · §6 安全 |
-| 决策依据 | `prd_document/11-decisions.md`（`D##`） |
-| v1 边界 | `prd_document/18-roadmap.md` |
+| 决策依据 | `../docs/prd/11-decisions.md`（`D##`） |
+| v1 边界 | `../docs/prd/18-roadmap.md` |
 
 ---
 
@@ -166,10 +166,10 @@ rg -i "masking|mask_rule|jit|access_grant|cost_threshold|service_account|share_l
 | 命名/术语 | `GLOSSARY.md` | §2 术语 · §5 易混辨析 · §6 禁用词 |
 | 编码底线 | `CODING_STANDARDS.md` | §2 分层 · §5 共享约定 · §6 安全 |
 | 契约实际形状 | `openapi.yaml` + `frontend/src/api/types.ts` + `backend/internal/oas/*_gen.go` | 三方对齐（B1） |
-| DDL 对照 | `prd_document/10-data-model.md` | §3 DDL（B4） |
-| 错误码目录 | `prd_document/12-api-contract.md` | §4.3（B3） |
-| 决策依据 | `prd_document/11-decisions.md` | `D##`（C2） |
-| v1 范围 | `prd_document/18-roadmap.md` | §1 v2 延后项（C1） |
+| DDL 对照 | `../docs/prd/10-data-model.md` | §3 DDL（B4） |
+| 错误码目录 | `../docs/prd/12-api-contract.md` | §4.3（B3） |
+| 决策依据 | `../docs/prd/11-decisions.md` | `D##`（C2） |
+| v1 范围 | `../docs/prd/18-roadmap.md` | §1 v2 延后项（C1） |
 
 ---
 

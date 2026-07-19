@@ -6,39 +6,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **DBHUB** — a centralized database query & export platform. Single-organization, self-hosted (decision **D1**: no multi-tenancy). The platform metadata DB (users / IAM / audit / tasks, PostgreSQL) is physically separate from the business databases users query.
 
-The PRD, CODING_STANDARDS, and GLOSSARY are written in **Chinese**; code/comments are bilingual (English doc-comments are the norm in the Go/TS layers). When the docs conflict, precedence is: **PRD (`prd_document/`) > [CODING_STANDARDS.md](CODING_STANDARDS.md) > [GLOSSARY.md](GLOSSARY.md)**. For naming, GLOSSARY is authoritative.
+The PRD, CODING_STANDARDS, and GLOSSARY are written in **Chinese**; code/comments are bilingual (English doc-comments are the norm in the Go/TS layers). When the docs conflict, precedence is: **PRD (`docs/prd/`) > [CODING_STANDARDS.md](CODING_STANDARDS.md) > [GLOSSARY.md](GLOSSARY.md)**. For naming, GLOSSARY is authoritative.
 
 ## Authoritative docs (read before non-trivial work)
 
 - [CODING_STANDARDS.md](CODING_STANDARDS.md) — hard rules for how to write code (layering, error handling, security floor, test strategy). The single most important file.
 - [GLOSSARY.md](GLOSSARY.md) — ubiquitous language. Code/DB/API naming must use these exact terms (e.g. `Worksheet` not `SavedQuery`; `Instance`/`Database`/`DataSource` are distinct; `tenant`/`workspace`-as-entity are **banned**).
-- `prd_document/` — feature & architecture spec (full catalog below). Decision IDs like D1/D38/D50 are cited everywhere; `11-decisions.md` is the index.
+- `docs/prd/` — feature & architecture spec (full catalog below). Decision IDs like D1/D38/D50 are cited everywhere; `11-decisions.md` is the index.
 
-## PRD 文档清单 (`prd_document/`)
+## PRD 文档清单 (`docs/prd/`)
 
-完整产品需求文档集,定位为「企业内部统一数据库访问与查询/导出平台」。改功能前先定位到对应文档。索引见 [`prd_document/README.md`](prd_document/README.md)。
+完整产品需求文档集,定位为「企业内部统一数据库访问与查询/导出平台」。改功能前先定位到对应文档。索引见 [`docs/prd/README.md`](docs/prd/README.md)。
 
 | 文档 | 路径 | 内容用途 |
 |---|---|---|
-| 产品总览 | [`prd_document/00-overview.md`](prd_document/00-overview.md) | 愿景、背景、目标用户、核心使用场景、范围与边界、术语表 |
-| 系统架构 | [`prd_document/01-architecture.md`](prd_document/01-architecture.md) | 总体架构、技术选型、模块划分(PostgreSQL 原生) |
-| 权限与访问控制 | [`prd_document/02-permission-and-access.md`](prd_document/02-permission-and-access.md) | RBAC 角色体系、项目隔离、库/表级结构化授权、环境护栏 |
-| SQL 查询工作台 | [`prd_document/03-sql-query.md`](prd_document/03-sql-query.md) | 查询执行、SQL 自动补全(LSP)、结果展示、查询历史、行数/超时控制 |
-| 数据导出 | [`prd_document/04-data-export.md`](prd_document/04-data-export.md) | 导出任务模型、格式、异步生命周期、权限与审计约束、归档与保留 |
-| 认证与身份集成 | [`prd_document/05-auth-idp.md`](prd_document/05-auth-idp.md) | 本地账号、LDAP、OIDC、SSO、用户/组映射、JIT、会话、MFA |
-| 审计日志 | [`prd_document/06-audit-log.md`](prd_document/06-audit-log.md) | 审计数据模型、被审计事件清单、不可变性、查询导出、保留策略 |
-| 资源管理 | [`prd_document/07-resource-management.md`](prd_document/07-resource-management.md) | instance/database/schema/table/view/column 资源模型、元数据发现与同步 |
-| 非功能性/风险/验收 | [`prd_document/08-nfr.md`](prd_document/08-nfr.md) | 性能/可用性/安全/合规、风险对策、验收标准 |
-| SQL 收藏与分享 | [`prd_document/09-sql-favorite-share.md`](prd_document/09-sql-favorite-share.md) | 个人收藏(星标)、基于 Worksheet 可见性的安全分享 |
-| 数据模型 | [`prd_document/10-data-model.md`](prd_document/10-data-model.md) | 平台元数据库表结构(简洁可扩展,PostgreSQL DDL) |
-| 决策记录 | [`prd_document/11-decisions.md`](prd_document/11-decisions.md) | 所有关键产品/架构决策及理由(交付团队必读,D## 编号的来源) |
-| API 契约 | [`prd_document/12-api-contract.md`](prd_document/12-api-contract.md) | 资源命名、通用约定、错误码目录、OpenAPI 路径与 JSON Schema(前后端并行依据) |
-| 核心时序图 | [`prd_document/13-sequences.md`](prd_document/13-sequences.md) | 登录、查询执行、异步导出三条端到端流程(Mermaid;JIT 延后 v2) |
-| 边界条件与异常处理 | [`prd_document/14-edge-cases.md`](prd_document/14-edge-cases.md) | 删除级联、并发、分页、断连恢复、会话边界、审计容错 |
-| UI 页面清单与线框 | [`prd_document/15-ui.md`](prd_document/15-ui.md) | 页面清单、核心页 ASCII 线框、交互状态约定(前端依据) |
-| 部署/安全/容量/测试 | [`prd_document/16-ops.md`](prd_document/16-ops.md) | 配置项、安全参数数值、容量假设、可观测、备份、测试策略、上线清单 |
-| 路线图(v2 及未来) | [`prd_document/18-roadmap.md`](prd_document/18-roadmap.md) | 不在 v1 范围的能力统一说明:v2 方向、未来延伸、永久边界 |
-| 技术选型决策 | [`prd_document/19-tech-stack.md`](prd_document/19-tech-stack.md) | v1 完整技术栈、选型理由、风险与取舍 |
+| 产品总览 | [`docs/prd/00-overview.md`](docs/prd/00-overview.md) | 愿景、背景、目标用户、核心使用场景、范围与边界、术语表 |
+| 系统架构 | [`docs/prd/01-architecture.md`](docs/prd/01-architecture.md) | 总体架构、技术选型、模块划分(PostgreSQL 原生) |
+| 权限与访问控制 | [`docs/prd/02-permission-and-access.md`](docs/prd/02-permission-and-access.md) | RBAC 角色体系、项目隔离、库/表级结构化授权、环境护栏 |
+| SQL 查询工作台 | [`docs/prd/03-sql-query.md`](docs/prd/03-sql-query.md) | 查询执行、SQL 自动补全(LSP)、结果展示、查询历史、行数/超时控制 |
+| 数据导出 | [`docs/prd/04-data-export.md`](docs/prd/04-data-export.md) | 导出任务模型、格式、异步生命周期、权限与审计约束、归档与保留 |
+| 认证与身份集成 | [`docs/prd/05-auth-idp.md`](docs/prd/05-auth-idp.md) | 本地账号、LDAP、OIDC、SSO、用户/组映射、JIT、会话、MFA |
+| 审计日志 | [`docs/prd/06-audit-log.md`](docs/prd/06-audit-log.md) | 审计数据模型、被审计事件清单、不可变性、查询导出、保留策略 |
+| 资源管理 | [`docs/prd/07-resource-management.md`](docs/prd/07-resource-management.md) | instance/database/schema/table/view/column 资源模型、元数据发现与同步 |
+| 非功能性/风险/验收 | [`docs/prd/08-nfr.md`](docs/prd/08-nfr.md) | 性能/可用性/安全/合规、风险对策、验收标准 |
+| SQL 收藏与分享 | [`docs/prd/09-sql-favorite-share.md`](docs/prd/09-sql-favorite-share.md) | 个人收藏(星标)、基于 Worksheet 可见性的安全分享 |
+| 数据模型 | [`docs/prd/10-data-model.md`](docs/prd/10-data-model.md) | 平台元数据库表结构(简洁可扩展,PostgreSQL DDL) |
+| 决策记录 | [`docs/prd/11-decisions.md`](docs/prd/11-decisions.md) | 所有关键产品/架构决策及理由(交付团队必读,D## 编号的来源) |
+| API 契约 | [`docs/prd/12-api-contract.md`](docs/prd/12-api-contract.md) | 资源命名、通用约定、错误码目录、OpenAPI 路径与 JSON Schema(前后端并行依据) |
+| 核心时序图 | [`docs/prd/13-sequences.md`](docs/prd/13-sequences.md) | 登录、查询执行、异步导出三条端到端流程(Mermaid;JIT 延后 v2) |
+| 边界条件与异常处理 | [`docs/prd/14-edge-cases.md`](docs/prd/14-edge-cases.md) | 删除级联、并发、分页、断连恢复、会话边界、审计容错 |
+| UI 页面清单与线框 | [`docs/prd/15-ui.md`](docs/prd/15-ui.md) | 页面清单、核心页 ASCII 线框、交互状态约定(前端依据) |
+| 部署/安全/容量/测试 | [`docs/prd/16-ops.md`](docs/prd/16-ops.md) | 配置项、安全参数数值、容量假设、可观测、备份、测试策略、上线清单 |
+| 路线图(v2 及未来) | [`docs/prd/18-roadmap.md`](docs/prd/18-roadmap.md) | 不在 v1 范围的能力统一说明:v2 方向、未来延伸、永久边界 |
+| 技术选型决策 | [`docs/prd/19-tech-stack.md`](docs/prd/19-tech-stack.md) | v1 完整技术栈、选型理由、风险与取舍 |
 
 > 注:编号无 `17`(原列表即缺)。v1 仅实现 PostgreSQL 一种引擎;列级脱敏/谓词保护、JIT、成本护栏、多引擎、Service Account 等不在 v1 范围,统一见 `18-roadmap.md`。
 

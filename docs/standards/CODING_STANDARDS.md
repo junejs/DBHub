@@ -1,6 +1,6 @@
 # DBHUB 编码规范（Coding Standards）
 
-> 本规范约束 DBHUB 前后端的代码风格、结构与质量底线，结合行业最佳实践与本项目实际（技术栈见 [prd_document/19-tech-stack.md](./prd_document/19-tech-stack.md)、决策见 [11-decisions.md](./prd_document/11-decisions.md)）。
+> 本规范约束 DBHUB 前后端的代码风格、结构与质量底线，结合行业最佳实践与本项目实际（技术栈见 [../prd/19-tech-stack.md](../prd/19-tech-stack.md)、决策见 [11-decisions.md](../prd/11-decisions.md)）。
 >
 > 命名所用业务术语一律以 [GLOSSARY.md](./GLOSSARY.md)（统一语言）为准。本文与 PRD 冲突时，PRD 优先；PRD 未覆盖处，本文为准。
 
@@ -9,7 +9,7 @@
 ## 0. 阅读对象与定位
 
 - **对象**：所有向本仓库提交代码的工程师（含 AI 协作）。
-- **定位**：是"怎么写代码"的硬约束，不是"做什么功能"的需求文档。功能与架构以 `prd_document/` 为准。
+- **定位**：是"怎么写代码"的硬约束，不是"做什么功能"的需求文档。功能与架构以 `docs/prd/` 为准。
 - **原则层级**：安全/正确性 > 可读性 > 一致性 > 简洁性 > 性能（性能优化须有依据，不臆测）。
 
 ---
@@ -193,7 +193,7 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build
 
 ---
 
-## 7. 测试策略要点（详见 [16-ops.md](./prd_document/16-ops.md)）
+## 7. 测试策略要点（详见 [16-ops.md](../prd/16-ops.md)）
 
 - **单测优先**（D50）：核心逻辑 ≥80%，外部依赖 interface+mock。
 - **契约测试**：后端实现须满足 `openapi.yaml`（ogen 类型即契约）；前端类型手写但须与契约一致。

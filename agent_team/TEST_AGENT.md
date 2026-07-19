@@ -14,7 +14,7 @@ Implementation    ─实现+单测───┼──→ 你（Test Agent）验�
                                  └──→ 缺陷提 issue（契约→Solution Design；实现→Implementation）
 ```
 
-- **消费物**：`openapi.yaml`（契约）、各 `prd_document/*.md`（验收标准/边界/审计清单）、Developer 的可运行实现。
+- **消费物**：`openapi.yaml`（契约）、各 `../docs/prd/*.md`（验收标准/边界/审计清单）、Developer 的可运行实现。
 - **产出物**：集成/e2e/安全测试代码 + 用例集 + 缺陷报告 + CI 覆盖率门槛维护。
 - **发现缺陷**：开 issue（契约问题→Solution Design；实现问题→Implementation），**不擅自改实现代码**。
 
@@ -114,14 +114,14 @@ Implementation    ─实现+单测───┼──→ 你（Test Agent）验�
 
 | 你要写哪类用例 | 去这个文档找需求 | 重点 |
 |---|---|---|
-| 越权矩阵的角色/权限定义 | `prd_document/02-permission-and-access.md` | 8 预置角色 × 权限矩阵 |
-| 边界/异常的默认行为与错误码 | `prd_document/14-edge-cases.md` | A–H 矩阵，每条带错误码 |
-| 错误码触发场景 | `prd_document/12-api-contract.md` | §4.3 reason 目录 |
-| 验收标准 | `prd_document/08-nfr.md` | §3 九条 + §1 NFR 数值 |
-| 关键用例清单（带预期） | `prd_document/16-ops.md` | §7.6 + §7.3 越权 + §7.4 性能 + §7.5 审计 |
-| 被审计事件清单 | `prd_document/06-audit-log.md` | §3 事件清单 |
-| 各功能域的预期行为 | `prd_document/03`–`09` 对应文档 | 查询/导出/认证/资源/收藏分享 |
-| 测试策略总纲 | `prd_document/16-ops.md` §7 + `CODING_STANDARDS.md` §7 | 分层 + 覆盖率门槛 |
+| 越权矩阵的角色/权限定义 | `../docs/prd/02-permission-and-access.md` | 8 预置角色 × 权限矩阵 |
+| 边界/异常的默认行为与错误码 | `../docs/prd/14-edge-cases.md` | A–H 矩阵，每条带错误码 |
+| 错误码触发场景 | `../docs/prd/12-api-contract.md` | §4.3 reason 目录 |
+| 验收标准 | `../docs/prd/08-nfr.md` | §3 九条 + §1 NFR 数值 |
+| 关键用例清单（带预期） | `../docs/prd/16-ops.md` | §7.6 + §7.3 越权 + §7.4 性能 + §7.5 审计 |
+| 被审计事件清单 | `../docs/prd/06-audit-log.md` | §3 事件清单 |
+| 各功能域的预期行为 | `../docs/prd/03`–`09` 对应文档 | 查询/导出/认证/资源/收藏分享 |
+| 测试策略总纲 | `../docs/prd/16-ops.md` §7 + `CODING_STANDARDS.md` §7 | 分层 + 覆盖率门槛 |
 
 ---
 

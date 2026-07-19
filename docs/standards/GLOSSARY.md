@@ -2,7 +2,7 @@
 
 > 本表是 DBHUB 的**统一语言**（DDD ubiquitous language）：代码命名、数据库表/字段设计、API 资源名都以本表的**英文术语**为准。所有人（产品/开发/AI）对同一概念用同一个词，杜绝同义词混用导致的歧义与返工。
 >
-> 与 PRD 冲突时以 PRD（`prd_document/`）为准；本表是 PRD 概念的命名落地。数据模型见 [10-data-model.md](./prd_document/10-data-model.md)，API 资源见 [12-api-contract.md](./prd_document/12-api-contract.md)。
+> 与 PRD 冲突时以 PRD（`docs/prd/`）为准；本表是 PRD 概念的命名落地。数据模型见 [10-data-model.md](../prd/10-data-model.md)，API 资源见 [12-api-contract.md](../prd/12-api-contract.md)。
 
 ---
 
@@ -101,7 +101,7 @@
 
 ## 3. 数据库命名与设计规范
 
-> 平台元数据库（PostgreSQL）。详见 [10-data-model.md](./prd_document/10-data-model.md) §1 设计原则。
+> 平台元数据库（PostgreSQL）。详见 [10-data-model.md](../prd/10-data-model.md) §1 设计原则。
 
 1. **主键**：内部表统一 `bigint generated always as identity`；仅对外随机器密（刷新令牌、访问令牌、分享链接）用 `uuid`/哈希。
 2. **表名**：复数蛇形（`users`、`role_assignments`、`export_tasks`）。
@@ -123,7 +123,7 @@
 
 ## 4. API 命名规范
 
-> 详见 [12-api-contract.md](./prd_document/12-api-contract.md)。
+> 详见 [12-api-contract.md](../prd/12-api-contract.md)。
 
 1. **资源路径**：层级反映归属（`projects/{project}/instances/{instance}/databases/{database}`）；集合复数。
 2. **路径段标识**：`{project}`/`{instance}`/`{environment}` 为小写 slug `[a-z][a-z0-9-]{1,62}`；库名/表名按引擎大小写规则原样保留。
@@ -173,5 +173,5 @@
 
 ## 7. 维护
 
-- 新增领域概念时：先加 PRD（`prd_document/`）→ 再加本表条目 → 再写代码/建表/加 API。
+- 新增领域概念时：先加 PRD（`docs/prd/`）→ 再加本表条目 → 再写代码/建表/加 API。
 - 发现代码/DB/API 出现本表之外的术语，视为"术语漂移"——要么改回统一术语，要么在此登记新词并说明理由。

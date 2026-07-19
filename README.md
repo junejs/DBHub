@@ -148,9 +148,9 @@ pnpm test
 - [CODING_STANDARDS.md](CODING_STANDARDS.md) — 前后端编码规范
 - [GLOSSARY.md](GLOSSARY.md) — 业务术语表（统一语言，命名/DB 设计参考）
 
-详细设计见 `prd_document/` 目录，关键文档：
+详细设计见 `docs/prd/` 目录，关键文档：
 
-- [19-tech-stack.md](prd_document/19-tech-stack.md) — 技术选型决策
-- [12-api-contract.md](prd_document/12-api-contract.md) — API 契约
-- [10-data-model.md](prd_document/10-data-model.md) — 数据模型
-- [16-ops.md](prd_document/16-ops.md) — 部署、安全与测试策略
+- [19-tech-stack.md](docs/prd/19-tech-stack.md) — 技术选型决策
+- [12-api-contract.md](docs/prd/12-api-contract.md) — API 契约
+- [10-data-model.md](docs/prd/10-data-model.md) — 数据模型
+- [16-ops.md](docs/prd/16-ops.md) — 部署、安全与测试策略

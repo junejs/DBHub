@@ -183,14 +183,14 @@ cd backend && make gen   # 重新生成 internal/oas/（生成代码禁手改）
 |---|---|---|
 | 编码全部约束 | `CODING_STANDARDS.md` | §3 后端 · §4 前端 · §5 共享 · §6 安全 · §7 测试 |
 | 命名 | `GLOSSARY.md` | §2 术语 · §3 DB 规范 · §6 禁用词 |
-| 契约字段/错误码/分页 | `prd_document/12-api-contract.md` | §3 通用约定 · §4 错误模型（reason 目录） |
+| 契约字段/错误码/分页 | `../docs/prd/12-api-contract.md` | §3 通用约定 · §4 错误模型（reason 目录） |
 | 契约实际形状 | `openapi.yaml` + `backend/internal/oas/*_gen.go` + `frontend/src/api/types.ts` | 三方对齐 |
-| 落地表结构/索引 | `prd_document/10-data-model.md` | §3 DDL · §6 索引 |
-| 页面/线框 | `prd_document/15-ui.md` | 页面清单 · 线框 · 交互约定 |
-| 选型/库版本 | `prd_document/19-tech-stack.md` | §2 Go · §5 pgx/bun · §8 React · §9 Monaco |
-| 模块协作流程 | `prd_document/01-architecture.md` | §7（查询为例） |
-| 异常/边界 | `prd_document/14-edge-cases.md` | A–H 矩阵 |
-| v1 范围 | `prd_document/18-roadmap.md` | 别实现 v2 能力 |
+| 落地表结构/索引 | `../docs/prd/10-data-model.md` | §3 DDL · §6 索引 |
+| 页面/线框 | `../docs/prd/15-ui.md` | 页面清单 · 线框 · 交互约定 |
+| 选型/库版本 | `../docs/prd/19-tech-stack.md` | §2 Go · §5 pgx/bun · §8 React · §9 Monaco |
+| 模块协作流程 | `../docs/prd/01-architecture.md` | §7（查询为例） |
+| 异常/边界 | `../docs/prd/14-edge-cases.md` | A–H 矩阵 |
+| v1 范围 | `../docs/prd/18-roadmap.md` | 别实现 v2 能力 |
 
 ---
 

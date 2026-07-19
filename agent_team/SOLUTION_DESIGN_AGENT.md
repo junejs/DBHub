@@ -8,9 +8,9 @@
 
 ## 0. 不可动摇的三条前提
 
-1. **文档是唯一事实来源，冲突时按优先级**：`prd_document/`（PRD）> `CODING_STANDARDS.md` > `GLOSSARY.md`。三者都覆盖到时，以 PRD 为准。
-2. **每个设计决策必须可追溯**：方案里引用具体的 `D##`（见 `prd_document/11-decisions.md`）或 `§x.x`。没有依据的「我觉得」一律不接受。
-3. **严守 v1 范围**：动手前先确认需求**是否在 v1 范围内**。凡是 `prd_document/18-roadmap.md` 里列出的延后项（脱敏 / JIT / 成本护栏 / 多引擎 / Service Account / 自定义角色 / 带 token 分享 / 定时导出 / XLSX·SQL 导出格式 …），一律不纳入 v1 设计；如需求确属此类，输出「范围判定：v2，见 18 §x.x」并停止，**不要硬塞进 v1**。
+1. **文档是唯一事实来源，冲突时按优先级**：`../docs/prd/`（PRD）> `CODING_STANDARDS.md` > `GLOSSARY.md`。三者都覆盖到时，以 PRD 为准。
+2. **每个设计决策必须可追溯**：方案里引用具体的 `D##`（见 `../docs/prd/11-decisions.md`）或 `§x.x`。没有依据的「我觉得」一律不接受。
+3. **严守 v1 范围**：动手前先确认需求**是否在 v1 范围内**。凡是 `../docs/prd/18-roadmap.md` 里列出的延后项（脱敏 / JIT / 成本护栏 / 多引擎 / Service Account / 自定义角色 / 带 token 分享 / 定时导出 / XLSX·SQL 导出格式 …），一律不纳入 v1 设计；如需求确属此类，输出「范围判定：v2，见 18 §x.x」并停止，**不要硬塞进 v1**。
 
 ---
 
@@ -37,7 +37,7 @@
 - [ ] 大小写规则：JSON/查询参数 **snake_case**；DB 表复数蛇形、列蛇形；Go PascalCase；TS 类型 PascalCase / 变量 camelCase（见 `GLOSSARY.md` §1 命名总则）。
 
 ### 2.2 数据结构（表 / 字段 / 索引）
-- [ ] 严格遵循 `prd_document/10-data-model.md` §1 设计原则 + §6 索引策略，以及 `GLOSSARY.md` §3 DB 规范。重点逐条核对：主键 `bigint identity`（仅对外随机秘密用 `uuid`/哈希）、软删用 `deleted_at`+部分唯一索引（**禁止 `deleted bool`**）、审计列、**无 `tenant_id`/`workspace_id`**、`engine` 用 `text`、枚举用 `text`（不用 PG enum）、邮箱 `citext`+`lower(email)` 部分唯一索引、凭据 `bytea`(AES-256-GCM) / `secret_ref`、JSONB 受控使用。
+- [ ] 严格遵循 `../docs/prd/10-data-model.md` §1 设计原则 + §6 索引策略，以及 `GLOSSARY.md` §3 DB 规范。重点逐条核对：主键 `bigint identity`（仅对外随机秘密用 `uuid`/哈希）、软删用 `deleted_at`+部分唯一索引（**禁止 `deleted bool`**）、审计列、**无 `tenant_id`/`workspace_id`**、`engine` 用 `text`、枚举用 `text`（不用 PG enum）、邮箱 `citext`+`lower(email)` 部分唯一索引、凭据 `bytea`(AES-256-GCM) / `secret_ref`、JSONB 受控使用。
 - [ ] **先看能不能复用既有表**（`10-data-model.md` §3 有完整 DDL）。新表是最后手段；新列优先看是否该走 JSONB `settings`/`metadata`。
 - [ ] 唯一约束在软删下用 `where deleted_at is null` 部分索引。
 - [ ] 外键：`member_id`/`scope_id` 这类多态列**故意不加 FK**（应用层保证一致性），新增多态引用时沿用此约定并注明。
@@ -56,7 +56,7 @@
 - [ ] 凡 `openapi.yaml` 有改动，方案里必须写明「**改完后执行 `cd backend && make gen`，并手动同步 `frontend/src/api/types.ts`**」（D51，前端无 codegen）。
 
 ### 2.4 技术方案（选型 / 分层 / 流程）
-- [ ] 选型先查 `prd_document/19-tech-stack.md`，对应决策在 `11-decisions.md`（D42–D51）。**默认不引入新依赖**；确需引入须写明理由 + 放弃的备选 + 风险（参照 19 各节的写法）。
+- [ ] 选型先查 `../docs/prd/19-tech-stack.md`，对应决策在 `11-decisions.md`（D42–D51）。**默认不引入新依赖**；确需引入须写明理由 + 放弃的备选 + 风险（参照 19 各节的写法）。
 - [ ] 严守分层单向依赖（`CODING_STANDARDS.md` §2）：`main → api → service → repo/store 接口`；`service` 不得 import `api`/`oas`。新模块要明确归到哪一层。
 - [ ] v1 约束清单（每条都有对应 D##，引用之）：仅 PostgreSQL 不预设多引擎抽象（D4）、单组织无多租户（D1）、进程内任务队列预留 `Queue` 接口（D46）、存储抽象预留 `export_archives(storage,location)`（D20）、结构化授权条件不引入 CEL（D34）、仅预置角色（D35）。
 - [ ] 外部依赖（DB/HTTP/时钟/存储/IdP）**必须 interface 注入**（D50 可测试性）——方案里新组件要画出它依赖的接口。
@@ -71,7 +71,7 @@
 - [ ] 审计读权限按 scope 收紧（`securityAdmin`/`workspaceAdmin` 全局，`projectOwner` 仅本项目，D26）。
 
 ### 2.6 边界与异常
-- [ ] 删除级联 / 并发 / 分页 / 断连 / 会话 / 配额，**逐条对照 `prd_document/14-edge-cases.md` 的 A–H 矩阵**给出默认行为与错误码，不要凭空发明。重点：删项目非空阻塞需 `force=true`（D27）、删用户=禁用 soft（D28）、删 group 保留 `group:x@` 历史绑定永不命中（D31）、同库并发同步用 advisory lock、重复创建用 `X-Request-Id` 幂等。
+- [ ] 删除级联 / 并发 / 分页 / 断连 / 会话 / 配额，**逐条对照 `../docs/prd/14-edge-cases.md` 的 A–H 矩阵**给出默认行为与错误码，不要凭空发明。重点：删项目非空阻塞需 `force=true`（D27）、删用户=禁用 soft（D28）、删 group 保留 `group:x@` 历史绑定永不命中（D31）、同库并发同步用 advisory lock、重复创建用 `X-Request-Id` 幂等。
 - [ ] 时间一律存 UTC（`timestamptz`），传输 RFC3339；标识符大小写按引擎规则。
 
 ---
@@ -95,16 +95,16 @@
 |---|---|---|
 | **任何设计都先读** | `GLOSSARY.md` | §2 术语表 · §5 易混辨析 · §6 禁用词 |
 | **任何设计都先读** | `CODING_STANDARDS.md` | §1 通用原则 · §2 分层 · §5 共享约定 · §6 安全底线 · §10 提交自检 |
-| 设计数据结构/表/字段/索引 | `prd_document/10-data-model.md` | §1 原则 · §3 完整 DDL · §6 索引策略 · §5 可扩展性 |
-| 设计 API/资源/schema/错误码 | `prd_document/12-api-contract.md` | §2 命名 · §3 通用约定 · §4 错误模型 · §9 落地约定 |
+| 设计数据结构/表/字段/索引 | `../docs/prd/10-data-model.md` | §1 原则 · §3 完整 DDL · §6 索引策略 · §5 可扩展性 |
+| 设计 API/资源/schema/错误码 | `../docs/prd/12-api-contract.md` | §2 命名 · §3 通用约定 · §4 错误模型 · §9 落地约定 |
 | 看 API 实际形状（必看，避免重复造） | `openapi.yaml` | 现有 `operationId` / `paths` / `components.schemas` / `x-` 扩展 |
-| 技术选型 / 引入新依赖 | `prd_document/19-tech-stack.md` + `prd_document/11-decisions.md` | 19 各节选型理由；D42–D51 |
-| 架构 / 分层归属 / 模块协作流程 | `prd_document/01-architecture.md` | §2 模块划分 · §3 关键设计 · §7 查询协作示例 |
-| 异常 / 级联 / 并发 / 配额 | `prd_document/14-edge-cases.md` | A 删除 · B 并发 · D 分页 · E 任务断连 · F 会话 · H 审计容错 |
-| 确认 v1 范围边界 | `prd_document/18-roadmap.md` | §1 v2 延后项 · §3 永久不做 · §4 演进原则 |
-| 决策溯源（引用 D##） | `prd_document/11-decisions.md` | 全文；按编号引用 |
-| 权限 / IAM / 角色 / 环境 | `prd_document/02-permission-and-access.md` | RBAC 体系 · 结构化条件 · 环境护栏 |
-| 各功能领域细节 | `prd_document/00`–`09` 对应文档 | 见 `prd_document/README.md` 导航表 |
+| 技术选型 / 引入新依赖 | `../docs/prd/19-tech-stack.md` + `../docs/prd/11-decisions.md` | 19 各节选型理由；D42–D51 |
+| 架构 / 分层归属 / 模块协作流程 | `../docs/prd/01-architecture.md` | §2 模块划分 · §3 关键设计 · §7 查询协作示例 |
+| 异常 / 级联 / 并发 / 配额 | `../docs/prd/14-edge-cases.md` | A 删除 · B 并发 · D 分页 · E 任务断连 · F 会话 · H 审计容错 |
+| 确认 v1 范围边界 | `../docs/prd/18-roadmap.md` | §1 v2 延后项 · §3 永久不做 · §4 演进原则 |
+| 决策溯源（引用 D##） | `../docs/prd/11-decisions.md` | 全文；按编号引用 |
+| 权限 / IAM / 角色 / 环境 | `../docs/prd/02-permission-and-access.md` | RBAC 体系 · 结构化条件 · 环境护栏 |
+| 各功能领域细节 | `../docs/prd/00`–`09` 对应文档 | 见 `../docs/prd/README.md` 导航表 |
 
 > 其他文档（`13-sequences.md` 时序、`15-ui.md` 线框、`16-ops.md` 部署/测试、`06-audit-log.md`、`07-resource-management.md`、`08-nfr.md`）按需求触达时再读。
 
@@ -112,7 +112,7 @@
 
 ## 5. 输出格式（方案文档模板）
 
-> 产出一份 Markdown，放 `prd_document/design/`（目录不存在则新建），文件名 `feat-<slug>.md`。结构如下，**没有内容的章节写「N/A」而非删除**：
+> 产出一份 Markdown，放 `../docs/prd/design/`（目录不存在则新建），文件名 `feat-<slug>.md`。结构如下，**没有内容的章节写「N/A」而非删除**：
 
 ```
 # 方案：<标题>
