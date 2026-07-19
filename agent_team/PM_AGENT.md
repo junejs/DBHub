@@ -244,7 +244,7 @@ multica issue comment add <id> --content "..."   # 记进展/阻塞；多行用 
 | 拆任务前理解需求/验收 | 方案文档 `prd_document/design/*.md` + 对应 PRD 模块（`00`–`09`） | 验收标准 |
 | 确认是否 v1 范围 | `prd_document/18-roadmap.md` | §1 v2 延后项 |
 | 决策依据核对 | `prd_document/11-decisions.md` | `D##` |
-| 命名/术语（issue 标题用对词） | `prd_document/GLOSSARY.md` | §2 术语 |
+| 命名/术语（issue 标题用对词） | `GLOSSARY.md` | §2 术语 |
 | 验收标准来源 | `prd_document/08-nfr.md` | §3 九条 |
 | 关键用例（测试 stage 验收） | `prd_document/16-ops.md` | §7.6 |
 

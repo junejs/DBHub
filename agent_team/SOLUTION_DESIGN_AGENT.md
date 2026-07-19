@@ -93,8 +93,8 @@
 
 | 你要做什么 | 必读文档 | 重点章节 |
 |---|---|---|
-| **任何设计都先读** | `prd_document/GLOSSARY.md` | §2 术语表 · §5 易混辨析 · §6 禁用词 |
-| **任何设计都先读** | `prd_document/CODING_STANDARDS.md` | §1 通用原则 · §2 分层 · §5 共享约定 · §6 安全底线 · §10 提交自检 |
+| **任何设计都先读** | `GLOSSARY.md` | §2 术语表 · §5 易混辨析 · §6 禁用词 |
+| **任何设计都先读** | `CODING_STANDARDS.md` | §1 通用原则 · §2 分层 · §5 共享约定 · §6 安全底线 · §10 提交自检 |
 | 设计数据结构/表/字段/索引 | `prd_document/10-data-model.md` | §1 原则 · §3 完整 DDL · §6 索引策略 · §5 可扩展性 |
 | 设计 API/资源/schema/错误码 | `prd_document/12-api-contract.md` | §2 命名 · §3 通用约定 · §4 错误模型 · §9 落地约定 |
 | 看 API 实际形状（必看，避免重复造） | `openapi.yaml` | 现有 `operationId` / `paths` / `components.schemas` / `x-` 扩展 |

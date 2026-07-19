@@ -6,12 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **DBHUB** — a centralized database query & export platform. Single-organization, self-hosted (decision **D1**: no multi-tenancy). The platform metadata DB (users / IAM / audit / tasks, PostgreSQL) is physically separate from the business databases users query.
 
-The PRD, CODING_STANDARDS, and GLOSSARY are written in **Chinese**; code/comments are bilingual (English doc-comments are the norm in the Go/TS layers). When the docs conflict, precedence is: **PRD (`prd_document/`) > [CODING_STANDARDS.md](prd_document/CODING_STANDARDS.md) > [GLOSSARY.md](prd_document/GLOSSARY.md)**. For naming, GLOSSARY is authoritative.
+The PRD, CODING_STANDARDS, and GLOSSARY are written in **Chinese**; code/comments are bilingual (English doc-comments are the norm in the Go/TS layers). When the docs conflict, precedence is: **PRD (`prd_document/`) > [CODING_STANDARDS.md](CODING_STANDARDS.md) > [GLOSSARY.md](GLOSSARY.md)**. For naming, GLOSSARY is authoritative.
 
 ## Authoritative docs (read before non-trivial work)
 
-- [CODING_STANDARDS.md](prd_document/CODING_STANDARDS.md) — hard rules for how to write code (layering, error handling, security floor, test strategy). The single most important file.
-- [GLOSSARY.md](prd_document/GLOSSARY.md) — ubiquitous language. Code/DB/API naming must use these exact terms (e.g. `Worksheet` not `SavedQuery`; `Instance`/`Database`/`DataSource` are distinct; `tenant`/`workspace`-as-entity are **banned**).
+- [CODING_STANDARDS.md](CODING_STANDARDS.md) — hard rules for how to write code (layering, error handling, security floor, test strategy). The single most important file.
+- [GLOSSARY.md](GLOSSARY.md) — ubiquitous language. Code/DB/API naming must use these exact terms (e.g. `Worksheet` not `SavedQuery`; `Instance`/`Database`/`DataSource` are distinct; `tenant`/`workspace`-as-entity are **banned**).
 - `prd_document/` — feature & architecture spec (full catalog below). Decision IDs like D1/D38/D50 are cited everywhere; `11-decisions.md` is the index.
 
 ## PRD 文档清单 (`prd_document/`)

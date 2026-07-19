@@ -75,7 +75,7 @@ cd backend && make gen   # 重新生成 internal/oas/（生成代码禁手改）
 | 两端 `*_test.go` / `*.test.tsx`（单测，D50） | 集成/e2e/越权矩阵测试（归 Test Agent） |
 
 ### 2.2 命名（GLOSSARY 锁死）
-- 领域术语先查 `prd_document/GLOSSARY.md` §2；**禁用词零容忍**（§6：tenant/workspace 作实体/account/saved query/snippet/bookmark/connection 指 DataSource/master-slave/blacklist/whitelist/CEL）。
+- 领域术语先查 `GLOSSARY.md` §2；**禁用词零容忍**（§6：tenant/workspace 作实体/account/saved query/snippet/bookmark/connection 指 DataSource/master-slave/blacklist/whitelist/CEL）。
 - 软删除统一 `deleted_at`，**禁 `deleted bool`**；外键 `_id`、时间戳 `_at`。
 
 ### 2.3 安全底线（不可妥协）
@@ -181,8 +181,8 @@ cd backend && make gen   # 重新生成 internal/oas/（生成代码禁手改）
 
 | 你要做什么 | 读这个 | 重点 |
 |---|---|---|
-| 编码全部约束 | `prd_document/CODING_STANDARDS.md` | §3 后端 · §4 前端 · §5 共享 · §6 安全 · §7 测试 |
-| 命名 | `prd_document/GLOSSARY.md` | §2 术语 · §3 DB 规范 · §6 禁用词 |
+| 编码全部约束 | `CODING_STANDARDS.md` | §3 后端 · §4 前端 · §5 共享 · §6 安全 · §7 测试 |
+| 命名 | `GLOSSARY.md` | §2 术语 · §3 DB 规范 · §6 禁用词 |
 | 契约字段/错误码/分页 | `prd_document/12-api-contract.md` | §3 通用约定 · §4 错误模型（reason 目录） |
 | 契约实际形状 | `openapi.yaml` + `backend/internal/oas/*_gen.go` + `frontend/src/api/types.ts` | 三方对齐 |
 | 落地表结构/索引 | `prd_document/10-data-model.md` | §3 DDL · §6 索引 |

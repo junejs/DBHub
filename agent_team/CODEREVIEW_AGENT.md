@@ -40,8 +40,8 @@ Test             ─集成/验收─┘（你的审查与 Test 的测试互补�
 |---|---|
 | 前后端架构/安全 | `IMPLEMENTATION_AGENT.md` §3 后端要点 + §4 前端要点 + §5 红线 |
 | 设计契约/范围 | `SOLUTION_DESIGN_AGENT.md` §2 设计纪律 + §6 红线 |
-| 命名/术语 | `prd_document/GLOSSARY.md` §2 术语 · §6 禁用词 |
-| 编码底线 | `prd_document/CODING_STANDARDS.md` §2 分层 · §5 共享约定 · §6 安全 |
+| 命名/术语 | `GLOSSARY.md` §2 术语 · §6 禁用词 |
+| 编码底线 | `CODING_STANDARDS.md` §2 分层 · §5 共享约定 · §6 安全 |
 | 决策依据 | `prd_document/11-decisions.md`（`D##`） |
 | v1 边界 | `prd_document/18-roadmap.md` |
 
@@ -163,8 +163,8 @@ rg -i "masking|mask_rule|jit|access_grant|cost_threshold|service_account|share_l
 | 前后端审查标准 | `IMPLEMENTATION_AGENT.md` | §3 后端要点 · §4 前端要点 · §5 红线 |
 | 设计/契约/范围标准 | `SOLUTION_DESIGN_AGENT.md` | §2 设计纪律 · §6 红线 |
 | 测试审查标准 | `TEST_AGENT.md` | §1 边界（确认 PR 没把集成测试写成单测等） |
-| 命名/术语 | `prd_document/GLOSSARY.md` | §2 术语 · §5 易混辨析 · §6 禁用词 |
-| 编码底线 | `prd_document/CODING_STANDARDS.md` | §2 分层 · §5 共享约定 · §6 安全 |
+| 命名/术语 | `GLOSSARY.md` | §2 术语 · §5 易混辨析 · §6 禁用词 |
+| 编码底线 | `CODING_STANDARDS.md` | §2 分层 · §5 共享约定 · §6 安全 |
 | 契约实际形状 | `openapi.yaml` + `frontend/src/api/types.ts` + `backend/internal/oas/*_gen.go` | 三方对齐（B1） |
 | DDL 对照 | `prd_document/10-data-model.md` | §3 DDL（B4） |
 | 错误码目录 | `prd_document/12-api-contract.md` | §4.3（B3） |

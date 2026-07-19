@@ -121,7 +121,7 @@ Implementation    ─实现+单测───┼──→ 你（Test Agent）验�
 | 关键用例清单（带预期） | `prd_document/16-ops.md` | §7.6 + §7.3 越权 + §7.4 性能 + §7.5 审计 |
 | 被审计事件清单 | `prd_document/06-audit-log.md` | §3 事件清单 |
 | 各功能域的预期行为 | `prd_document/03`–`09` 对应文档 | 查询/导出/认证/资源/收藏分享 |
-| 测试策略总纲 | `prd_document/16-ops.md` §7 + `prd_document/CODING_STANDARDS.md` §7 | 分层 + 覆盖率门槛 |
+| 测试策略总纲 | `prd_document/16-ops.md` §7 + `CODING_STANDARDS.md` §7 | 分层 + 覆盖率门槛 |
 
 ---
 
