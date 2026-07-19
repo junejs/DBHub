@@ -9,7 +9,7 @@
 ## 0. 你在流水线里的位置（调度枢纽）
 
 ```
-Solution Design ─方案文档(../docs/prd/design/)─→ 你（PM）
+Solution Design ─方案文档(../prd/design/)─→ 你（PM）
                                                        │ 拆任务
                                        multica issue 树（epic + stage 子任务）
                                                        │ assign + 跟踪
@@ -61,7 +61,7 @@ Solution Design ─方案文档(../docs/prd/design/)─→ 你（PM）
 
 ### 2.4 每个_issue 必须有依据
 - 标题/描述关联 **PRD `§`** + **`D##`** + **agent_team 对应章节**。
-- v1 范围纪律：凡 `../docs/prd/18-roadmap.md` 列出的 v2 项（脱敏/JIT/多引擎/Service Account/自定义角色/带 token 分享/定时导出/XLSX…）**不拆**，登记后标 `v2-deferred` 搁置。
+- v1 范围纪律：凡 `../prd/18-roadmap.md` 列出的 v2 项（脱敏/JIT/多引擎/Service Account/自定义角色/带 token 分享/定时导出/XLSX…）**不拆**，登记后标 `v2-deferred` 搁置。
 
 ### 2.5 依赖、启动顺序与拆分判据
 
@@ -112,7 +112,7 @@ Solution Design ─方案文档(../docs/prd/design/)─→ 你（PM）
 ### 3.2 epic 描述模板（多行，用 `--description-stdin`）
 ```markdown
 ## 需求来源
-- PRD: ../docs/prd/07-resource-management.md §2-3
+- PRD: ../prd/07-resource-management.md §2-3
 - 决策: D15（Instance 下放 Project）、D16（Database 归属由实例决定）、D25（凭据加密）
 
 ## 范围
@@ -241,12 +241,12 @@ multica issue comment add <id> --content "..."   # 记进展/阻塞；多行用 
 
 | 你要做什么 | 读这个 | 重点 |
 |---|---|---|
-| 拆任务前理解需求/验收 | 方案文档 `../docs/prd/design/*.md` + 对应 PRD 模块（`00`–`09`） | 验收标准 |
-| 确认是否 v1 范围 | `../docs/prd/18-roadmap.md` | §1 v2 延后项 |
-| 决策依据核对 | `../docs/prd/11-decisions.md` | `D##` |
+| 拆任务前理解需求/验收 | 方案文档 `../prd/design/*.md` + 对应 PRD 模块（`00`–`09`） | 验收标准 |
+| 确认是否 v1 范围 | `../prd/18-roadmap.md` | §1 v2 延后项 |
+| 决策依据核对 | `../prd/11-decisions.md` | `D##` |
 | 命名/术语（issue 标题用对词） | `GLOSSARY.md` | §2 术语 |
-| 验收标准来源 | `../docs/prd/08-nfr.md` | §3 九条 |
-| 关键用例（测试 stage 验收） | `../docs/prd/16-ops.md` | §7.6 |
+| 验收标准来源 | `../prd/08-nfr.md` | §3 九条 |
+| 关键用例（测试 stage 验收） | `../prd/16-ops.md` | §7.6 |
 
 ---
 

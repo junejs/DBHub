@@ -1,15 +1,15 @@
 ---
 name: multica-usage
-description: Sync the role agents under the repo's `agent_team/` directory (DBHUB Project Manager, Solution Design, Implementation, Test, CodeReview) into the current Multica workspace — creating or updating Multica agents so they can be assigned issues and run tasks. Use this whenever the user wants to upload, publish, push, register, deploy, or sync the `agent_team` agents (or any `*_AGENT.md` file) into Multica, recreate the DBHUB agent team in a fresh workspace, or make the agents "show up / become available" in Multica. Also use it when the user asks to keep the workspace's agents in sync after editing an agent markdown file.
+description: Sync the role agents under the repo's `docs/agents/` directory (DBHUB Project Manager, Solution Design, Implementation, Test, CodeReview) into the current Multica workspace — creating or updating Multica agents so they can be assigned issues and run tasks. Use this whenever the user wants to upload, publish, push, register, deploy, or sync the `agent_team` agents (or any `*_AGENT.md` file) into Multica, recreate the DBHUB agent team in a fresh workspace, or make the agents "show up / become available" in Multica. Also use it when the user asks to keep the workspace's agents in sync after editing an agent markdown file.
 ---
 
 # Multica agent upload
 
-Upload (create-or-update) every agent in `agent_team/` into the **current Multica workspace** as a Multica agent, so each one can be assigned issues and invoked like a teammate.
+Upload (create-or-update) every agent in `docs/agents/` into the **current Multica workspace** as a Multica agent, so each one can be assigned issues and invoked like a teammate.
 
 ## What "upload" means here
 
-Each `*_AGENT.md` file in `agent_team/` is a set of agent instructions. The equivalent Multica resource is an **agent** whose `instructions` field is the file's contents. "Uploading" = making sure a Multica agent exists for each file, with its `instructions` matching the file, plus a stable `name` and `description`.
+Each `*_AGENT.md` file in `docs/agents/` is a set of agent instructions. The equivalent Multica resource is an **agent** whose `instructions` field is the file's contents. "Uploading" = making sure a Multica agent exists for each file, with its `instructions` matching the file, plus a stable `name` and `description`.
 
 This is **idempotent**: re-running it only updates `instructions`/`description` for agents that already exist, and creates the rest. It never deletes or archives anything.
 
@@ -17,7 +17,7 @@ This is **idempotent**: re-running it only updates `instructions`/`description` 
 
 - The `multica` CLI is on PATH and authenticated (run `multica auth whoami` / `multica workspace list` to confirm). It targets the "current workspace" — the one selected by the active profile or `MULTICA_WORKSPACE_ID`.
 - `jq` is installed (`brew install jq` if not).
-- Run from the **repository root**, so `./agent_team` resolves. (The repo is `dbhub-requirement`.)
+- Run from the **repository root**, so `./docs/agents` resolves. (The repo is `dbhub-requirement`.)
 
 ## How to upload
 
@@ -56,11 +56,11 @@ The script resolves sensible defaults so you usually don't need to think about t
 - **Runtime**: defaults to the first **online, local** runtime (`multica runtime list`). Override with `--runtime-id <ID>` or the `MULTICA_RUNTIME_ID` env var. It is only set when **creating** an agent — once an agent exists, the script leaves its runtime alone (you may have intentionally pointed it elsewhere).
 - **Visibility**: `workspace`, so other teammates and agents (e.g. the Project Manager dispatching issues) can invoke them. Override with `--visibility private` if you want owner-only agents.
 
-Other flags: `--source-dir DIR` (default `./agent_team`), `--only NAME` (upload a single agent), `--dry-run`, `--help`.
+Other flags: `--source-dir DIR` (default `./docs/agents`), `--only NAME` (upload a single agent), `--dry-run`, `--help`.
 
 ## Adding or changing an agent
 
-1. Edit the `*_AGENT.md` file under `agent_team/` (or add a new one).
+1. Edit the `*_AGENT.md` file under `docs/agents/` (or add a new one).
 2. If it's new, add a row to `agents.tsv`: `file<TAB>Name<TAB>short description`.
 3. Re-run the script. Existing agents get their `instructions` updated; new ones get created.
 
