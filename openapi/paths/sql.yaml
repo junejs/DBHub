@@ -1,0 +1,107 @@
+  /v1/projects/{project}/instances/{instance}/databases/{database}:export:
+    post:
+      tags: [SQL]
+      operationId: sqlExport
+      summary: 同步导出
+      description: |
+        小结果集同步导出，返回用户自设密码加密的 ZIP 字节流。
+        预估 >1 万行（EXPLAIN 估算，见 D22）→ `412 EXPORT_TOO_LARGE_FOR_SYNC`，改走异步 ExportTask。
+      x-requires-permission: db.sql.select
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/Instance'
+        - $ref: '../components.yaml#/components/parameters/Database'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/ExportRequest'
+      responses:
+        '200':
+          description: 加密 ZIP 字节流
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400': { $ref: '../components.yaml#/components/responses/Error' }
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '412': { $ref: '../components.yaml#/components/responses/PreconditionFailed' }
+        '503': { $ref: '../components.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: '../components.yaml#/components/responses/GatewayTimeout' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/projects/{project}/instances/{instance}/databases/{database}:query:
+    post:
+      tags: [SQL]
+      operationId: sqlQuery
+      summary: 执行 SQL 查询
+      description: |
+        核心查询路径。多语句（分号分隔）首请求执行全部语句，响应 `results[]` 按序返回每条语句的首页；
+        取某结果集下一页 → 带 `page_token` 再次 POST `:query`（此时 `statement` 忽略，服务端按 token 续读）。
+        只读强制；语句超时、行数/字节上限按环境策略 `environment_policies` 生效。
+      x-requires-permission: db.sql.select
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/Instance'
+        - $ref: '../components.yaml#/components/parameters/Database'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: 查询结果（多语句按序）
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/QueryResponse'
+        '400': { $ref: '../components.yaml#/components/responses/Error' }
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        '412': { $ref: '../components.yaml#/components/responses/PreconditionFailed' }
+        '503': { $ref: '../components.yaml#/components/responses/ServiceUnavailable' }
+        '504': { $ref: '../components.yaml#/components/responses/GatewayTimeout' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/queryHistories:search:
+    get:
+      tags: [SQL]
+      operationId: queryHistoriesSearch
+      summary: 检索查询历史
+      description: 仅返回调用者本人的查询/导出历史（按归属判定，非 ACL）。
+      x-requires-permission: ""
+      x-audit: false
+      x-auth-method: CUSTOM
+      parameters:
+        - name: database
+          in: query
+          description: 按数据库资源名过滤（可选）。
+          required: false
+          schema: { type: string }
+        - name: keyword
+          in: query
+          description: 语句关键字模糊匹配（可选）。
+          required: false
+          schema: { type: string }
+        - $ref: '../components.yaml#/components/parameters/PageSize'
+        - $ref: '../components.yaml#/components/parameters/PageToken'
+      responses:
+        '200':
+          description: 查询历史列表
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/ListQueryHistoriesResponse'
+        '401': { $ref: '../components.yaml#/components/responses/Unauthorized' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+

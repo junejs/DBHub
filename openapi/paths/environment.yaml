@@ -1,0 +1,142 @@
+  /v1/environments:
+    get:
+      tags: [Environment]
+      operationId: listEnvironments
+      summary: 列出环境（公开读）
+      description: 供前端渲染环境标签与策略下拉。
+      x-requires-permission: ""
+      x-audit: false
+      x-allow-without-credential: true
+      security: []
+      responses:
+        '200':
+          description: 环境列表
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/ListEnvironmentsResponse'
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/environments/{environment}:
+    post:
+      tags: [Environment]
+      operationId: createEnvironment
+      summary: 创建环境（按 key upsert）
+      description: 仅 workspaceAdmin/securityAdmin。
+      x-requires-permission: db.environments.create
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Environment'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/Environment'
+      responses:
+        '200':
+          description: 已创建/更新
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Environment'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '409': { $ref: '../components.yaml#/components/responses/Conflict' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    patch:
+      tags: [Environment]
+      operationId: updateEnvironment
+      summary: 更新环境
+      x-requires-permission: db.environments.update
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Environment'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+        - $ref: '../components.yaml#/components/parameters/UpdateMask'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/Environment'
+      responses:
+        '200':
+          description: 更新后的环境
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Environment'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    delete:
+      tags: [Environment]
+      operationId: deleteEnvironment
+      summary: 删除环境
+      description: 被实例引用时阻塞（409）。
+      x-requires-permission: db.environments.delete
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Environment'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      responses:
+        '204':
+          description: 已删除
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        '409': { $ref: '../components.yaml#/components/responses/Conflict' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/environments/{environment}/policy:
+    get:
+      tags: [Environment]
+      operationId: getEnvironmentPolicy
+      summary: 读取环境策略
+      description: 查询/导出护栏（行数上限等运行时策略）。
+      x-requires-permission: db.environments.getPolicy
+      x-audit: false
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Environment'
+      responses:
+        '200':
+          description: 环境策略
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/EnvironmentPolicy'
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    patch:
+      tags: [Environment]
+      operationId: updateEnvironmentPolicy
+      summary: 更新环境策略
+      description: 仅 securityAdmin/workspaceAdmin；记审计前值。
+      x-requires-permission: db.environments.updatePolicy
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Environment'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+        - $ref: '../components.yaml#/components/parameters/UpdateMask'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/EnvironmentPolicy'
+      responses:
+        '200':
+          description: 更新后的环境策略
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/EnvironmentPolicy'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+

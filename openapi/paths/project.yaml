@@ -1,0 +1,144 @@
+  /v1/projects:
+    post:
+      tags: [Project]
+      operationId: createProject
+      summary: 创建项目
+      description: 仅 workspaceAdmin（D1/D15）。
+      x-requires-permission: db.projects.create
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/XRequestId'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/CreateProjectRequest'
+      responses:
+        '200':
+          description: 已创建
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Project'
+        '400': { $ref: '../components.yaml#/components/responses/Error' }
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '409': { $ref: '../components.yaml#/components/responses/Conflict' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    get:
+      tags: [Project]
+      operationId: listProjects
+      summary: 列出项目
+      description: 仅返回调用者所属项目（鉴权过滤；workspaceAdmin/securityAdmin 可见全部）。
+      x-requires-permission: db.projects.list
+      x-audit: false
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/PageSize'
+        - $ref: '../components.yaml#/components/parameters/PageToken'
+      responses:
+        '200':
+          description: 项目列表
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/ListProjectsResponse'
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/projects/{project}:
+    get:
+      tags: [Project]
+      operationId: getProject
+      summary: 获取项目
+      x-requires-permission: ""
+      x-audit: false
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+      responses:
+        '200':
+          description: 项目详情
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Project'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    patch:
+      tags: [Project]
+      operationId: updateProject
+      summary: 更新项目
+      x-requires-permission: db.projects.update
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+        - $ref: '../components.yaml#/components/parameters/UpdateMask'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/Project'
+      responses:
+        '200':
+          description: 更新后的项目
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Project'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    delete:
+      tags: [Project]
+      operationId: deleteProject
+      summary: 删除项目（软删）
+      description: 非空阻塞；显式 `force=true` 才级联软删（D27）。
+      x-requires-permission: db.projects.delete
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - name: force
+          in: query
+          required: false
+          schema: { type: boolean, default: false }
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      responses:
+        '204':
+          description: 已删除
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        '409':
+          description: 项目非空，需 force=true 才能级联删除
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Error'
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/projects/{project}:undelete:
+    post:
+      tags: [Project]
+      operationId: undeleteProject
+      summary: 恢复已删除项目
+      x-requires-permission: db.projects.delete
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      responses:
+        '200':
+          description: 已恢复
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Project'
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+

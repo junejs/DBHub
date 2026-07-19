@@ -1,0 +1,85 @@
+  /v1/iam:getIamPolicy:
+    post:
+      tags: [IAM]
+      operationId: getIamPolicy
+      summary: 读取资源 IAM 策略
+      description: |
+        作用于任意资源（`projects/{p}` 或具体实例/库）。`resource` 在请求体传递（资源名含 `/`）。
+        仅 v1 预置角色；绑定含结构化条件。
+      x-requires-permission: db.projects.getIamPolicy
+      x-audit: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/GetIamPolicyRequest'
+      responses:
+        '200':
+          description: IAM 策略
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/IamPolicy'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/iam:setIamPolicy:
+    post:
+      tags: [IAM]
+      operationId: setIamPolicy
+      summary: 写入资源 IAM 策略
+      description: |
+        乐观锁：请求带 `etag`，服务端不匹配 → `409 CONCURRENT_MODIFICATION`。
+        审计记录变更前后差异（service_data）。
+      x-requires-permission: db.projects.setIamPolicy
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/SetIamPolicyRequest'
+      responses:
+        '200':
+          description: 写入后的 IAM 策略
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/IamPolicy'
+        '400': { $ref: '../components.yaml#/components/responses/Error' }
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        '409': { $ref: '../components.yaml#/components/responses/Conflict' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/iam:testIamPermissions:
+    post:
+      tags: [IAM]
+      operationId: testIamPermissions
+      summary: 测试调用者本人权限
+      description: 按调用者本人对 `resource` 持有的权限判定，返回命中的权限子集（用于前端 UI 收敛）。
+      x-requires-permission: ""
+      x-audit: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/TestIamPermissionsRequest'
+      responses:
+        '200':
+          description: 命中的权限
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/TestIamPermissionsResponse'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+

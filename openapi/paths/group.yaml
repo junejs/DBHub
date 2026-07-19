@@ -1,0 +1,178 @@
+  /v1/groups:
+    post:
+      tags: [Group]
+      operationId: createGroup
+      summary: 创建用户组
+      x-requires-permission: db.groups.create
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/XRequestId'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/Group'
+      responses:
+        '200':
+          description: 已创建
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Group'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '409': { $ref: '../components.yaml#/components/responses/Conflict' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    get:
+      tags: [Group]
+      operationId: listGroups
+      summary: 列出用户组
+      x-requires-permission: db.groups.list
+      x-audit: false
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/PageSize'
+        - $ref: '../components.yaml#/components/parameters/PageToken'
+      responses:
+        '200':
+          description: 用户组列表
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/ListGroupsResponse'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/groups/{group}:
+    get:
+      tags: [Group]
+      operationId: getGroup
+      summary: 获取用户组
+      x-requires-permission: db.groups.get
+      x-audit: false
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Group'
+      responses:
+        '200':
+          description: 用户组详情
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Group'
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    patch:
+      tags: [Group]
+      operationId: updateGroup
+      summary: 更新用户组
+      x-requires-permission: db.groups.update
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Group'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+        - $ref: '../components.yaml#/components/parameters/UpdateMask'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/Group'
+      responses:
+        '200':
+          description: 更新后的用户组
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Group'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    delete:
+      tags: [Group]
+      operationId: deleteGroup
+      summary: 删除用户组（soft）
+      description: 历史 IAM 绑定 `group:x@` 保留（永不命中，D31）。
+      x-requires-permission: db.groups.delete
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Group'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      responses:
+        '204':
+          description: 已删除
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/groups/{group}/members:
+    post:
+      tags: [Group]
+      operationId: addGroupMember
+      summary: 添加组成员
+      x-requires-permission: db.groups.update
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Group'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/AddGroupMemberRequest'
+      responses:
+        '204':
+          description: 已添加
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        '409': { $ref: '../components.yaml#/components/responses/Conflict' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    get:
+      tags: [Group]
+      operationId: listGroupMembers
+      summary: 列出组成员
+      x-requires-permission: db.groups.get
+      x-audit: false
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Group'
+        - $ref: '../components.yaml#/components/parameters/PageSize'
+        - $ref: '../components.yaml#/components/parameters/PageToken'
+      responses:
+        '200':
+          description: 组成员列表
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/ListGroupMembersResponse'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/groups/{group}/members/{member}:
+    delete:
+      tags: [Group]
+      operationId: removeGroupMember
+      summary: 移除组成员
+      x-requires-permission: db.groups.update
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Group'
+        - name: member
+          in: path
+          required: true
+          description: 用户资源名（`users/{user}`）。
+          schema: { type: string }
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      responses:
+        '204':
+          description: 已移除
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+

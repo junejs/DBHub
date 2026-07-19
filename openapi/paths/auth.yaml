@@ -1,0 +1,143 @@
+  /v1/auth/csrf:
+    get:
+      tags: [Auth]
+      operationId: authCsrf
+      summary: 获取 CSRF 令牌
+      description: |
+        Cookie 写操作采用双提交 CSRF：首屏由此下发 `X-CSRF-Token`，
+        后续 POST/PATCH/DELETE 请求头回传。纯 Bearer 调用不受 CSRF 影响。
+      x-requires-permission: ""
+      x-audit: false
+      x-allow-without-credential: true
+      security: []
+      responses:
+        '200':
+          description: CSRF 令牌
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/CsrfResponse'
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/auth:login:
+    post:
+      tags: [Auth]
+      operationId: authLogin
+      summary: 登录
+      description: |
+        邮箱密码登录；若该账号开启 MFA，返回 `mfa_temp_token`（access_token 为空），
+        需再次以 `mfa_temp_token` + `otp_code`/`recovery_code` 完成二次验证。
+        失败按锁定窗口计数（密码 10/10min、MFA 5/5min，见 14-F）。
+      x-requires-permission: ""
+      x-audit: true
+      x-allow-without-credential: true
+      security: []
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/LoginResponse'
+        '401': { $ref: '../components.yaml#/components/responses/Unauthorized' }
+        '429': { $ref: '../components.yaml#/components/responses/RateLimited' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/auth:logout:
+    post:
+      tags: [Auth]
+      operationId: authLogout
+      summary: 登出
+      description: 吊销当前 refresh token / 会话。
+      x-requires-permission: ""
+      x-audit: true
+      responses:
+        '204':
+          description: 已登出
+        '401': { $ref: '../components.yaml#/components/responses/Unauthorized' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/auth:passwordReset:confirm:
+    post:
+      tags: [Auth]
+      operationId: authPasswordResetConfirm
+      summary: 确认密码重置
+      description: 以重置凭证 + 新密码完成修改，校验新密码强度。
+      x-requires-permission: ""
+      x-audit: true
+      x-allow-without-credential: true
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/PasswordResetConfirmRequest'
+      responses:
+        '204':
+          description: 密码已重置
+        '400': { $ref: '../components.yaml#/components/responses/Error' }
+        '401': { $ref: '../components.yaml#/components/responses/Unauthorized' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/auth:passwordReset:request:
+    post:
+      tags: [Auth]
+      operationId: authPasswordResetRequest
+      summary: 发起密码重置
+      description: 校验邮箱存在性后下发重置凭证（实现选定通道，v1 站内/邮件自定）。
+      x-requires-permission: ""
+      x-audit: false
+      x-allow-without-credential: true
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/PasswordResetRequest'
+      responses:
+        '204':
+          description: 已受理（无论邮箱是否存在，均返回 204 防枚举）
+        '429': { $ref: '../components.yaml#/components/responses/RateLimited' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/auth:refresh:
+    post:
+      tags: [Auth]
+      operationId: authRefresh
+      summary: 刷新访问令牌
+      description: 以 refresh token 换取新的 access token。
+      x-requires-permission: ""
+      x-audit: false
+      x-allow-without-credential: true
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: 刷新成功
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/RefreshResponse'
+        '401': { $ref: '../components.yaml#/components/responses/Unauthorized' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+

@@ -1,0 +1,53 @@
+  /v1/settings/{key}:
+    get:
+      tags: [Setting]
+      operationId: getSetting
+      summary: 读取平台设置
+      x-requires-permission: db.settings.get
+      x-audit: false
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 设置项
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Setting'
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    patch:
+      tags: [Setting]
+      operationId: updateSetting
+      summary: 更新平台设置
+      description: 仅 workspaceAdmin/securityAdmin；记审计前值。
+      x-requires-permission: db.settings.update
+      x-audit: true
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/Setting'
+      responses:
+        '200':
+          description: 更新后的设置项
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Setting'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+# ═══════════════════════════════════════════════════════════════════════

@@ -1,0 +1,136 @@
+  /v1/identityProviders:
+    get:
+      tags: [IDP]
+      operationId: listIdentityProviders
+      summary: 列出身份提供商
+      description: 登录页渲染 SSO 按钮可匿名读取（仅返回 enabled + title/type/domain，不含密钥）。
+      x-requires-permission: ""
+      x-audit: false
+      x-allow-without-credential: true
+      security: []
+      responses:
+        '200':
+          description: IdP 列表（脱敏）
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/ListIdentityProvidersResponse'
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/identityProviders/{idp}:
+    post:
+      tags: [IDP]
+      operationId: createIdentityProvider
+      summary: 创建 IdP（按 name upsert）
+      x-requires-permission: db.identityProviders.create
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/IdentityProvider'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/IdentityProvider'
+      responses:
+        '200':
+          description: 已创建/更新
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/IdentityProvider'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '409': { $ref: '../components.yaml#/components/responses/Conflict' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    get:
+      tags: [IDP]
+      operationId: getIdentityProvider
+      summary: 获取 IdP
+      x-requires-permission: db.identityProviders.get
+      x-audit: false
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/IdentityProvider'
+      responses:
+        '200':
+          description: IdP 详情
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/IdentityProvider'
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    patch:
+      tags: [IDP]
+      operationId: updateIdentityProvider
+      summary: 更新 IdP
+      x-requires-permission: db.identityProviders.update
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/IdentityProvider'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+        - $ref: '../components.yaml#/components/parameters/UpdateMask'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/IdentityProvider'
+      responses:
+        '200':
+          description: 更新后的 IdP
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/IdentityProvider'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    delete:
+      tags: [IDP]
+      operationId: deleteIdentityProvider
+      summary: 删除 IdP
+      x-requires-permission: db.identityProviders.delete
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/IdentityProvider'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      responses:
+        '204':
+          description: 已删除
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/identityProviders/{idp}:test:
+    post:
+      tags: [IDP]
+      operationId: testIdentityProvider
+      summary: 测试 IdP
+      description: 以授权码测试连通性，返回 `IdentityProviderUserInfo`（不落库）。
+      x-requires-permission: db.identityProviders.get
+      x-audit: false
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/IdentityProvider'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/TestIdentityProviderRequest'
+      responses:
+        '200':
+          description: IdP 用户信息
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/IdentityProviderUserInfo'
+        '412': { $ref: '../components.yaml#/components/responses/PreconditionFailed' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+

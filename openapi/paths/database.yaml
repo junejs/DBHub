@@ -1,0 +1,100 @@
+  /v1/projects/{project}/instances/{instance}/databases:
+    get:
+      tags: [Database]
+      operationId: listDatabases
+      summary: 列出数据库
+      description: 返回实例内调用者可见的逻辑库（鉴权过滤）。
+      x-requires-permission: db.databases.list
+      x-audit: false
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/Instance'
+        - $ref: '../components.yaml#/components/parameters/PageSize'
+        - $ref: '../components.yaml#/components/parameters/PageToken'
+      responses:
+        '200':
+          description: 数据库列表
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/ListDatabasesResponse'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/projects/{project}/instances/{instance}/databases/{database}:
+    get:
+      tags: [Database]
+      operationId: getDatabase
+      summary: 获取数据库
+      description: 含 `effective_environment`（数据库未显式标注环境时继承实例环境）。
+      x-requires-permission: db.databases.get
+      x-audit: false
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/Instance'
+        - $ref: '../components.yaml#/components/parameters/Database'
+      responses:
+        '200':
+          description: 数据库详情
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Database'
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    patch:
+      tags: [Database]
+      operationId: updateDatabase
+      summary: 更新数据库（标签/显示设置）
+      x-requires-permission: db.databases.update
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/Instance'
+        - $ref: '../components.yaml#/components/parameters/Database'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+        - $ref: '../components.yaml#/components/parameters/UpdateMask'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/Database'
+      responses:
+        '200':
+          description: 更新后的数据库
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Database'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/projects/{project}/instances/{instance}/databases/{database}:syncSchema:
+    post:
+      tags: [Database]
+      operationId: syncDatabaseSchema
+      summary: 触发库 schema 同步
+      description: 即时返回 202 + 当前 sync_status；后台异步反射 schema 写入快照（D41）。
+      x-requires-permission: db.databases.sync
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/Instance'
+        - $ref: '../components.yaml#/components/parameters/Database'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      responses:
+        '202':
+          description: 已触发 schema 同步
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/SyncResponse'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+

@@ -1,0 +1,270 @@
+  /v1/projects/{project}/instances:
+    post:
+      tags: [Instance]
+      operationId: createInstance
+      summary: 创建实例
+      description: 在项目内注册一个数据库实例；必须标注环境。支持 `validate_only`（测试连接，不落库）。
+      x-requires-permission: db.instances.create
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/XRequestId'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/CreateInstanceRequest'
+      responses:
+        '200':
+          description: 已创建
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Instance'
+        '400': { $ref: '../components.yaml#/components/responses/Error' }
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '409': { $ref: '../components.yaml#/components/responses/Conflict' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    get:
+      tags: [Instance]
+      operationId: listInstances
+      summary: 列出实例
+      description: 返回项目内调用者可见的实例（鉴权过滤）。
+      x-requires-permission: db.instances.list
+      x-audit: false
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/PageSize'
+        - $ref: '../components.yaml#/components/parameters/PageToken'
+      responses:
+        '200':
+          description: 实例列表
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/ListInstancesResponse'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/projects/{project}/instances/{instance}:
+    get:
+      tags: [Instance]
+      operationId: getInstance
+      summary: 获取实例
+      x-requires-permission: db.instances.get
+      x-audit: false
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/Instance'
+      responses:
+        '200':
+          description: 实例详情
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Instance'
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    patch:
+      tags: [Instance]
+      operationId: updateInstance
+      summary: 更新实例
+      description: PATCH + JSON Merge Patch；可改展示名、同步间隔、设置等。
+      x-requires-permission: db.instances.update
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/Instance'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+        - $ref: '../components.yaml#/components/parameters/UpdateMask'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/Instance'
+      responses:
+        '200':
+          description: 更新后的实例
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Instance'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        '409': { $ref: '../components.yaml#/components/responses/Conflict' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    delete:
+      tags: [Instance]
+      operationId: deleteInstance
+      summary: 删除实例（软删）
+      x-requires-permission: db.instances.delete
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/Instance'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      responses:
+        '204':
+          description: 已删除
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/projects/{project}/instances/{instance}/dataSources/{dataSource}:
+    post:
+      tags: [Instance]
+      operationId: createDataSource
+      summary: 创建/替换数据源
+      description: |
+        实例下数据源，资源名段 `{dataSource}` 即角色（`admin`/`readonly`，每实例各至多一个）。
+        POST 为 upsert 语义（按角色键覆盖）。凭据加密存储（D25）。
+      x-requires-permission: db.instances.update
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/Instance'
+        - name: dataSource
+          in: path
+          required: true
+          description: 数据源角色（admin | readonly）。
+          schema:
+            type: string
+            enum: [admin, readonly]
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/DataSource'
+      responses:
+        '200':
+          description: 已创建/替换的数据源
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/DataSource'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '409': { $ref: '../components.yaml#/components/responses/Conflict' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    patch:
+      tags: [Instance]
+      operationId: updateDataSource
+      summary: 更新数据源
+      x-requires-permission: db.instances.update
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/Instance'
+        - name: dataSource
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [admin, readonly]
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+        - $ref: '../components.yaml#/components/parameters/UpdateMask'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/DataSource'
+      responses:
+        '200':
+          description: 更新后的数据源
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/DataSource'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    delete:
+      tags: [Instance]
+      operationId: deleteDataSource
+      summary: 删除数据源
+      x-requires-permission: db.instances.update
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/Instance'
+        - name: dataSource
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [admin, readonly]
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      responses:
+        '204':
+          description: 已删除
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/projects/{project}/instances/{instance}:sync:
+    post:
+      tags: [Instance]
+      operationId: syncInstance
+      summary: 触发实例元数据同步
+      description: |
+        即时返回 202 + 当前 `sync_status` + 触发时间；后台异步执行（D41）。
+        完成后写 `last_sync_time`/`sync_status`，可选推站内通知。不引入 LRO 轮询。
+      x-requires-permission: db.instances.sync
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/Instance'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      responses:
+        '202':
+          description: 已触发同步
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/SyncResponse'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/projects/{project}/instances/{instance}:testConnection:
+    post:
+      tags: [Instance]
+      operationId: testInstanceConnection
+      summary: 测试实例连接
+      description: 以请求体中的数据源凭据尝试连接（`validate_only` 语义），不落库。
+      x-requires-permission: db.instances.get
+      x-audit: false
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/Instance'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/TestConnectionRequest'
+      responses:
+        '200':
+          description: 连接测试结果
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/TestConnectionResponse'
+        '412': { $ref: '../components.yaml#/components/responses/PreconditionFailed' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+

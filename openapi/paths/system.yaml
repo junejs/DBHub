@@ -1,0 +1,41 @@
+  /healthz:
+    get:
+      tags: [System]
+      operationId: healthz
+      summary: 存活检查
+      description: 进程存活探针，不做就绪判定，不依赖下游。
+      x-requires-permission: ""
+      x-audit: false
+      x-allow-without-credential: true
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
+
+
+  /readyz:
+    get:
+      tags: [System]
+      operationId: readyz
+      summary: 就绪检查
+      description: 校验平台元数据库连通性，可承接流量时返回 ready。
+      x-requires-permission: ""
+      x-audit: false
+      x-allow-without-credential: true
+      security: []
+      responses:
+        '200':
+          description: Ready
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ready
+        '503':
+          $ref: '../components.yaml#/components/responses/ServiceUnavailable'
+

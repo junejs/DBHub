@@ -1,0 +1,55 @@
+  /v1/auditLogs:export:
+    post:
+      tags: [Audit]
+      operationId: exportAuditLogs
+      summary: 导出审计日志
+      description: 按检索条件导出（CSV/JSON），返回字节流。审计的审计（x-audit:true）。
+      x-requires-permission: db.auditLogs.export
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/SearchAuditLogsRequest'
+      responses:
+        '200':
+          description: 审计日志导出字节流
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/auditLogs:search:
+    post:
+      tags: [Audit]
+      operationId: searchAuditLogs
+      summary: 检索审计日志
+      description: |
+        结构化过滤（method/user/resource/severity/create_time）。
+        `parent` = `projects/{p}` 走项目级读权限（projectOwner 可读本项目，D26）；
+        省略 `parent` 为全局（securityAdmin / workspaceAdmin）。大表分页上限 5000，可不返回 total_size。
+      x-requires-permission: db.auditLogs.search
+      x-audit: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/SearchAuditLogsRequest'
+      responses:
+        '200':
+          description: 审计日志列表
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/ListAuditLogsResponse'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+

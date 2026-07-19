@@ -1,0 +1,124 @@
+  /v1/projects/{project}/exportTasks:
+    post:
+      tags: [Export]
+      operationId: createExportTask
+      summary: 创建异步导出任务
+      description: |
+        异步导出大结果集；幂等创建支持请求头 `X-Request-Id`。
+        任务完成后向发起人推站内通知（`export_done`）。
+      x-requires-permission: db.exports.create
+      x-audit: true
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/XRequestId'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/CreateExportTaskRequest'
+      responses:
+        '200':
+          description: 已创建（或幂等命中既有任务）
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/ExportTask'
+        '400': { $ref: '../components.yaml#/components/responses/Error' }
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '409': { $ref: '../components.yaml#/components/responses/Conflict' }
+        '429': { $ref: '../components.yaml#/components/responses/RateLimited' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    get:
+      tags: [Export]
+      operationId: listExportTasks
+      summary: 列出导出任务
+      description: 返回项目内调用者可见的导出任务（鉴权过滤）。
+      x-requires-permission: ""
+      x-audit: false
+      x-auth-method: CUSTOM
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: '../components.yaml#/components/schemas/ExportTaskState'
+        - $ref: '../components.yaml#/components/parameters/PageSize'
+        - $ref: '../components.yaml#/components/parameters/PageToken'
+      responses:
+        '200':
+          description: 导出任务列表
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/ListExportTasksResponse'
+        '401': { $ref: '../components.yaml#/components/responses/Unauthorized' }
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/projects/{project}/exportTasks/{task}:
+    get:
+      tags: [Export]
+      operationId: getExportTask
+      summary: 获取导出任务
+      description: 查询任务状态、行数、产物引用等。
+      x-requires-permission: ""
+      x-audit: false
+      x-auth-method: CUSTOM
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - name: task
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 导出任务详情
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/ExportTask'
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/projects/{project}/exportTasks/{task}:download:
+    post:
+      tags: [Export]
+      operationId: downloadExportTask
+      summary: 下载导出产物
+      description: |
+        校验用户自设 ZIP 密码；错误 → `403 EXPORT_PASSWORD_INVALID`。
+        产物过期已清理 → `404 EXPORT_ARCHIVE_EXPIRED`。下载流式解密下发。
+      x-requires-permission: ""
+      x-audit: true
+      x-auth-method: CUSTOM
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - name: task
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/DownloadExportRequest'
+      responses:
+        '200':
+          description: 加密 ZIP 字节流（流式解密下发）
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+

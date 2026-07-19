@@ -1,0 +1,79 @@
+  /v1/users/me/notifications:
+    get:
+      tags: [Notification]
+      operationId: listMyNotifications
+      summary: 我的站内通知
+      x-requires-permission: ""
+      x-audit: false
+      x-auth-method: CUSTOM
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/PageSize'
+        - $ref: '../components.yaml#/components/parameters/PageToken'
+      responses:
+        '200':
+          description: 通知列表
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/ListNotificationsResponse'
+        '401': { $ref: '../components.yaml#/components/responses/Unauthorized' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/users/me/notifications/{id}:markRead:
+    post:
+      tags: [Notification]
+      operationId: markNotificationRead
+      summary: 标记单条已读
+      x-requires-permission: ""
+      x-audit: false
+      x-auth-method: CUSTOM
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      responses:
+        '204':
+          description: 已标记已读
+        '401': { $ref: '../components.yaml#/components/responses/Unauthorized' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/users/me/notifications:markAllRead:
+    post:
+      tags: [Notification]
+      operationId: markAllNotificationsRead
+      summary: 全部标记已读
+      x-requires-permission: ""
+      x-audit: false
+      x-auth-method: CUSTOM
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      responses:
+        '204':
+          description: 已全部标记已读
+        '401': { $ref: '../components.yaml#/components/responses/Unauthorized' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/users/me/notifications:unreadCount:
+    get:
+      tags: [Notification]
+      operationId: getUnreadNotificationCount
+      summary: 未读通知计数
+      x-requires-permission: ""
+      x-audit: false
+      x-auth-method: CUSTOM
+      responses:
+        '200':
+          description: 未读数量
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/UnreadCountResponse'
+        '401': { $ref: '../components.yaml#/components/responses/Unauthorized' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+

@@ -101,6 +101,28 @@ cd frontend && cp .env.example .env && pnpm install && pnpm dev
 
 Cross-cutting security is **declarative**: each operation carries `x-requires-permission` / `x-audit` / `x-auth-method` / `x-allow-without-credential` extensions, enforced by middleware — business code must not gate access itself.
 
+**`openapi.yaml` is split** into multiple files (was 3080 lines) to avoid single-file bloat. The entry file `openapi.yaml` has only header + `paths:` / `components:` with `$ref` to sub-files:
+
+```
+openapi.yaml                     (entry: header + paths $ref + components $ref)
+openapi/
+├── components.yaml              (parameters + responses + schemas together)
+└── paths/
+    ├── system.yaml, auth.yaml, sql.yaml, export.yaml
+    ├── instance.yaml, database.yaml, iam.yaml, audit.yaml
+    ├── project.yaml, environment.yaml, user.yaml, group.yaml
+    ├── idp.yaml, worksheet.yaml, notification.yaml, setting.yaml
+```
+
+Key rules when editing:
+- **Edit paths** → `openapi/paths/<topic>.yaml` (internal `$ref` uses `../components.yaml#/components/...`)
+- **Edit schemas/params/responses** → `openapi/components.yaml` (internal `$ref` uses `#/components/...`)
+- **Add a new path** → write the block in the correct topic file, then add a `$ref` line in `openapi.yaml` `paths:`
+  (JSON Pointer encoding: `/` → `~1`, e.g. `/v1/projects` → `~1v1~1projects`)
+- **Regenerate** → `cd backend && make gen`
+- **ogen config** needs `parser.allow_remote: true` (`backend/ogen.yml`) to follow cross-file `$ref`
+- **Restore single file** → `cp openapi.yaml.bak openapi.yaml`
+
 ### Backend layering (strict, one-way, irreversible)
 
 ```

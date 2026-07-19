@@ -8,6 +8,10 @@
 #   在 main.go 中通过 chi 的 Mount 挂到 /v1 之下；认证/ACL/审计横切中间件包在外层。
 # - v1 不生成 Go 客户端（前端是 TS，从同一份 openapi.yaml 生成类型）。
 
+parser:
+  # 允许 $ref 引用外部文件（拆分后跨文件引用需要）
+  allow_remote: true
+
 generator:
   features:
     disable:

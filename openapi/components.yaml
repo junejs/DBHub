@@ -1,0 +1,973 @@
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "API 端访问令牌（`Authorization: Bearer <jwt>`）。"
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access-token
+      description: Web 端 HTTP-only Cookie（`access-token` / `refresh-token`，`SameSite=Lax`）。
+
+  parameters:
+    PageSize:
+      name: page_size
+      in: query
+      description: 分页大小（默认 50；审计等大表上限 5000）。
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 5000
+        default: 50
+    PageToken:
+      name: page_token
+      in: query
+      description: 不透明 keyset 游标（不可构造）；无更多页时响应省略 next_page_token。
+      required: false
+      schema: { type: string }
+    UpdateMask:
+      name: update_mask
+      in: query
+      description: 声明本次 PATCH 改哪些字段（逗号分隔）；省略则按 JSON Merge Patch 处理。
+      required: false
+      schema:
+        type: array
+        items: { type: string }
+      style: form
+      explode: false
+    IfMatch:
+      name: If-Match
+      in: header
+      description: 乐观锁 etag（可并发编辑的资源，如 Worksheet/IamPolicy）。
+      required: false
+      schema: { type: string }
+    XRequestId:
+      name: X-Request-Id
+      in: header
+      description: 客户端生成的请求 ID；`Create*` 相同 ID 重试返回首次结果（幂等创建）。
+      required: false
+      schema: { type: string }
+    XCSRFToken:
+      name: X-Csrf-Token
+      in: header
+      description: Cookie 写操作双提交 CSRF 令牌（首屏由 GET /v1/auth/csrf 下发；HTTP 头大小写不敏感，ogen/Go 取规范形 X-Csrf-Token）。纯 Bearer 不受影响。
+      required: false
+      schema: { type: string }
+    Project:
+      name: project
+      in: path
+      required: true
+      description: 项目 key。
+      schema: { type: string, pattern: '^[a-z][a-z0-9-]{1,62}$' }
+    Instance:
+      name: instance
+      in: path
+      required: true
+      description: 实例 slug。
+      schema: { type: string, pattern: '^[a-z][a-z0-9-]{1,62}$' }
+    Database:
+      name: database
+      in: path
+      required: true
+      description: 数据库名（按引擎大小写规则原样保留）。
+      schema: { type: string }
+    Environment:
+      name: environment
+      in: path
+      required: true
+      description: 环境 key（dev/test/stage/prod …）。
+      schema: { type: string, pattern: '^[a-z][a-z0-9-]{1,62}$' }
+    User:
+      name: user
+      in: path
+      required: true
+      description: 用户 id 或 `me`。
+      schema: { type: string }
+    Group:
+      name: group
+      in: path
+      required: true
+      description: 组名（如 `analysts@corp`）。
+      schema: { type: string }
+    IdentityProvider:
+      name: idp
+      in: path
+      required: true
+      description: IdP name（如 `oidc-corp`）。
+      schema: { type: string }
+
+  responses:
+    Error:
+      description: 通用错误响应（业务错误码以 details[].reason 携带，见 12-api-contract.md §4.3）。
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: 未登录 / token 失效 / 凭据错误 / MFA 相关（401）。
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: 无权限 / 跨项目隔离 / 导出密码错误（403）。
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: 资源不存在或无权可见 / 产物过期（404）。
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: 资源已存在 / 并发冲突（ETag）（409）。
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    PreconditionFailed:
+      description: 前置条件不满足，如只读连接执行 DDL、查询超行数上限、同步导出过大、测试连接失败（412）。
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    RateLimited:
+      description: 限流 / 配额耗尽（429）。
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ServiceUnavailable:
+      description: 服务不可用，如业务库连不上（503）。
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    GatewayTimeout:
+      description: 语句超时（504）。
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    # ───────── 错误模型 ─────────
+    Error:
+      type: object
+      description: |
+        统一错误响应。`code` 为 HTTP 状态码，`message` 面向人，`details[]` 面向程序。
+        业务错误码以 `ErrorInfo.reason`（稳定字符串）携带，附 `metadata` 上下文（位置、阈值、资源名）。
+        reason 目录见 12-api-contract.md §4.3（AUTH_*、PERMISSION_DENIED、PROJECT_ISOLATION、
+        RESOURCE_NOT_FOUND、CONCURRENT_MODIFICATION、INVALID_SQL、NON_READONLY_STATEMENT、
+        QUERY_ROW_LIMIT_EXCEEDED、QUERY_TIMEOUT、EXPORT_*、RATE_LIMITED、DB_CONNECTION_FAILED 等）。
+      required: [code, message]
+      properties:
+        code: { type: integer }
+        message: { type: string }
+        details:
+          type: array
+          items: { $ref: '#/components/schemas/ErrorDetail' }
+    ErrorDetail:
+      type: object
+      properties:
+        '@type': { type: string, example: dbh.v1.ErrorInfo }
+        reason: { type: string, description: 稳定业务错误码标识 }
+        domain: { type: string, example: dbh }
+        metadata:
+          type: object
+          additionalProperties: { type: string }
+          description: 结构化上下文（如 limit、position、engine_error）。
+        field_violations:
+          type: array
+          description: 字段级校验错误（BadRequest detail）。
+          items: { $ref: '#/components/schemas/FieldViolation' }
+    FieldViolation:
+      type: object
+      properties:
+        field: { type: string }
+        description: { type: string }
+
+    # ───────── 查询 ─────────
+    ExportFormat:
+      type: string
+      description: 导出格式（v1 仅 CSV/JSON；SQL/XLSX 延后 v2）。
+      enum: [CSV, JSON]
+    QueryRequest:
+      type: object
+      required: [statement]
+      properties:
+        statement:
+          type: string
+          description: 多语句分号分隔；带 page_token 时忽略。
+        limit:
+          type: integer
+          format: int64
+          description: 行数上限；默认取 environment_policies.query_row_limit。
+        schema:
+          type: string
+          description: search_path / current schema。
+        data_source_id:
+          type: string
+          description: 指定数据源（admin/readonly），可选。
+        explain: { type: boolean }
+        page_token:
+          type: string
+          description: 翻某结果集下一页（语句序号+游标已编码入 token）。
+    QueryResponse:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          description: 多语句：每条语句一个结果，按序。
+          items: { $ref: '#/components/schemas/QueryResult' }
+    QueryResult:
+      type: object
+      properties:
+        column_names:
+          type: array
+          items: { type: string }
+        column_type_names:
+          type: array
+          items: { type: string }
+        rows:
+          type: array
+          items: { $ref: '#/components/schemas/QueryRow' }
+        rows_count: { type: integer, format: int64 }
+        next_page_token:
+          type: string
+          description: 该结果集下一页游标；无则省略。
+        error: { $ref: '#/components/schemas/QueryError' }
+        latency:
+          type: string
+          description: 如 "0.42s"。
+        statement: { type: string }
+        engine_messages:
+          type: array
+          items: { type: string }
+          description: NOTICE/PRINT。
+    QueryRow:
+      type: object
+      properties:
+        values:
+          type: array
+          items: { $ref: '#/components/schemas/RowValue' }
+    RowValue:
+      type: object
+      description: 列值；实际取一种 kind（由字段非空判定）。
+      properties:
+        null_value:
+          type: boolean
+          nullable: true
+          description: 用 true 表示 NULL。
+        bool_value: { type: boolean }
+        int_value: { type: integer, format: int64 }
+        double_value: { type: number }
+        string_value: { type: string }
+        bytes_value: { type: string, format: byte }
+        time_value: { type: string, format: date-time }
+        struct_value:
+          type: string
+          description: JSON 文本。
+    QueryError:
+      type: object
+      properties:
+        message: { type: string }
+        syntax_error: { $ref: '#/components/schemas/SyntaxError' }
+        permission_denied:
+          type: object
+          description: 命中结构化条件拒绝。
+        command_error: { $ref: '#/components/schemas/CommandError' }
+        engine_error: { $ref: '#/components/schemas/EngineError' }
+    SyntaxError:
+      type: object
+      properties:
+        position: { type: integer }
+        message: { type: string }
+    CommandError:
+      type: object
+      description: "kind: ddl | dml | non_read_only。"
+      properties:
+        kind: { type: string }
+        message: { type: string }
+    EngineError:
+      type: object
+      properties:
+        code: { type: string }
+        message: { type: string }
+    QueryHistory:
+      type: object
+      properties:
+        name: { type: string }
+        database: { type: string }
+        statement: { type: string }
+        kind:
+          type: string
+          description: query | export
+        duration_ms: { type: integer }
+        error: { type: string }
+        create_time: { type: string, format: date-time }
+    ListQueryHistoriesResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/QueryHistory' }
+        next_page_token: { type: string }
+
+    # ───────── 同步导出 ─────────
+    ExportRequest:
+      type: object
+      required: [statement, format, password]
+      properties:
+        statement: { type: string }
+        format: { $ref: '#/components/schemas/ExportFormat' }
+        password:
+          type: string
+          description: 用户自设 ZIP 密码（平台不存储、不下发）。
+        limit: { type: integer, format: int64 }
+        schema: { type: string }
+        data_source_id: { type: string }
+
+    # ───────── 异步导出 ─────────
+    ExportTaskState:
+      type: string
+      enum: [CREATED, RUNNING, SUCCEEDED, FAILED, EXPIRED]
+    ExportTask:
+      type: object
+      properties:
+        name:
+          type: string
+          description: projects/{p}/exportTasks/{id}
+        database:
+          type: string
+          description: projects/{p}/instances/{i}/databases/{d}
+        statement: { type: string }
+        format: { $ref: '#/components/schemas/ExportFormat' }
+        state: { $ref: '#/components/schemas/ExportTaskState' }
+        creator:
+          type: string
+          description: users/{id}
+        create_time: { type: string, format: date-time }
+        complete_time: { type: string, format: date-time }
+        row_count: { type: integer, format: int64 }
+        size_bytes: { type: integer, format: int64 }
+        error: { type: string }
+        export_archive_id:
+          type: string
+          description: 产物引用（成功后返回）。
+    CreateExportTaskRequest:
+      type: object
+      required: [task]
+      properties:
+        task: { $ref: '#/components/schemas/ExportTask' }
+    DownloadExportRequest:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+          description: 校验 ZIP 密码；错 → 403 EXPORT_PASSWORD_INVALID。
+    ListExportTasksResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ExportTask' }
+        next_page_token: { type: string }
+
+    # ───────── 实例 / 数据源 ─────────
+    Instance:
+      type: object
+      properties:
+        name:
+          type: string
+          description: projects/{p}/instances/{i}
+        project:
+          type: string
+          description: projects/{p}
+        title:
+          type: string
+          description: 展示名。
+        engine:
+          type: string
+          description: "'postgresql'（v1）。"
+        engine_version:
+          type: string
+          description: OUTPUT_ONLY。
+        environment:
+          type: string
+          description: environments/{env}，必填。
+        activation: { type: boolean }
+        sync_interval_seconds: { type: integer }
+        last_sync_time:
+          type: string
+          format: date-time
+          description: OUTPUT_ONLY。
+        data_sources:
+          type: array
+          items: { $ref: '#/components/schemas/DataSource' }
+    CreateInstanceRequest:
+      type: object
+      required: [instance]
+      properties:
+        instance_id: { type: string }
+        instance: { $ref: '#/components/schemas/Instance' }
+        validate_only:
+          type: boolean
+          description: 只校验（测试连接）不落库。
+    DataSource:
+      type: object
+      properties:
+        name:
+          type: string
+          description: .../instances/{i}/dataSources/{role}
+        role:
+          type: string
+          enum: [admin, readonly]
+        host: { type: string }
+        port: { type: integer }
+        database: { type: string }
+        username: { type: string }
+        secret_ref:
+          type: string
+          description: 外部 Secret Manager 引用（非空时优先，见 D25）。
+        connection:
+          type: object
+          additionalProperties: true
+          description: |
+            连接参数（不含明文密码）。写时 password_enc/ssl/ssh 隧道等由服务端加密入库；
+            读时密码相关字段一律不下发。
+    TestConnectionRequest:
+      type: object
+      properties:
+        data_source: { $ref: '#/components/schemas/DataSource' }
+    TestConnectionResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+        engine_version: { type: string }
+        error: { type: string }
+    SyncResponse:
+      type: object
+      properties:
+        sync_status:
+          type: string
+          description: 当前同步状态（ok | failed | running）。
+        triggered_at:
+          type: string
+          format: date-time
+          description: 触发时间。
+    ListInstancesResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Instance' }
+        next_page_token: { type: string }
+
+    # ───────── 数据库 ─────────
+    Database:
+      type: object
+      properties:
+        name:
+          type: string
+          description: projects/{p}/instances/{i}/databases/{d}
+        project:
+          type: string
+          description: OUTPUT_ONLY（= instance.project）。
+        instance:
+          type: string
+          description: projects/{p}/instances/{i}
+        environment:
+          type: string
+          description: effective_environment，OUTPUT_ONLY。
+        sync_status: { type: string }
+        sync_error: { type: string }
+        labels:
+          type: object
+          additionalProperties: { type: string }
+    ListDatabasesResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Database' }
+        next_page_token: { type: string }
+
+    # ───────── IAM ─────────
+    IamPolicy:
+      type: object
+      properties:
+        bindings:
+          type: array
+          items: { $ref: '#/components/schemas/Binding' }
+        etag: { type: string }
+    Binding:
+      type: object
+      required: [role, members]
+      properties:
+        role:
+          type: string
+          description: roles/sqlEditorReadUser 等（v1 仅预置角色）。
+        members:
+          type: array
+          description: user:{email} | group:{email} | allUsers。
+          items: { type: string }
+        condition: { $ref: '#/components/schemas/BindingCondition' }
+    BindingCondition:
+      type: object
+      description: 结构化授权条件（环境/库/schema/表，多选/包含语义，不暴露表达式语言）。
+      properties:
+        environments:
+          type: array
+          items: { type: string }
+        databases:
+          type: array
+          items: { type: string }
+        schemas:
+          type: array
+          items: { type: string }
+        tables:
+          type: array
+          items: { type: string }
+    GetIamPolicyRequest:
+      type: object
+      required: [resource]
+      properties:
+        resource:
+          type: string
+          description: 资源名（projects/{p} 或具体实例/库）。
+    SetIamPolicyRequest:
+      type: object
+      required: [resource, policy]
+      properties:
+        resource: { type: string }
+        policy: { $ref: '#/components/schemas/IamPolicy' }
+    TestIamPermissionsRequest:
+      type: object
+      required: [resource, permissions]
+      properties:
+        resource: { type: string }
+        permissions:
+          type: array
+          items: { type: string }
+    TestIamPermissionsResponse:
+      type: object
+      properties:
+        permissions:
+          type: array
+          description: 调用者本人命中的权限子集。
+          items: { type: string }
+
+    # ───────── 审计 ─────────
+    AuditLog:
+      type: object
+      properties:
+        name: { type: string }
+        create_time: { type: string, format: date-time }
+        method: { type: string }
+        user: { type: string }
+        resource: { type: string }
+        severity: { type: string }
+        status_code: { type: integer }
+        status_message: { type: string }
+        latency: { type: string }
+        request:
+          type: string
+          description: 脱敏后 JSON。
+        response:
+          type: string
+          description: 脱敏后 JSON。
+        ip: { type: string }
+        user_agent: { type: string }
+    SearchAuditLogsRequest:
+      type: object
+      properties:
+        parent:
+          type: string
+          description: projects/{p}（项目级）或省略（全局，securityAdmin）。
+        filter: { $ref: '#/components/schemas/AuditLogFilter' }
+        page_size: { type: integer }
+        page_token: { type: string }
+    AuditLogFilter:
+      type: object
+      description: 结构化过滤。
+      properties:
+        method: { type: string }
+        user: { type: string }
+        resource: { type: string }
+        severity: { type: string }
+        start_time: { type: string, format: date-time }
+        end_time: { type: string, format: date-time }
+    ListAuditLogsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AuditLog' }
+        next_page_token: { type: string }
+
+    # ───────── 项目 / 环境 ─────────
+    Project:
+      type: object
+      properties:
+        name:
+          type: string
+          description: projects/{key}
+        key: { type: string }
+        title: { type: string }
+        description: { type: string }
+        settings:
+          type: object
+          additionalProperties: true
+          description: 项目级开关。
+        create_time: { type: string, format: date-time }
+        update_time: { type: string, format: date-time }
+    CreateProjectRequest:
+      type: object
+      required: [project]
+      properties:
+        project_id: { type: string }
+        project: { $ref: '#/components/schemas/Project' }
+    ListProjectsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Project' }
+        next_page_token: { type: string }
+    Environment:
+      type: object
+      properties:
+        name:
+          type: string
+          description: environments/{key}
+        key: { type: string }
+        title: { type: string }
+        protection_level:
+          type: integer
+          description: 越大越受保护（prod 高、dev 低）。
+        color: { type: string }
+        description: { type: string }
+        rank: { type: integer }
+    EnvironmentPolicy:
+      type: object
+      description: 环境级运行时策略（查询/导出护栏）。
+      properties:
+        query_row_limit:
+          type: integer
+          description: 单次查询默认行数上限。
+        export_max_rows:
+          type: integer
+          format: int64
+          description: 单次导出行数上限。
+        settings:
+          type: object
+          additionalProperties: true
+          description: 扩展位（结果字节上限、并发查询数等）。
+    ListEnvironmentsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Environment' }
+
+    # ───────── 用户 / 组 ─────────
+    User:
+      type: object
+      properties:
+        name:
+          type: string
+          description: users/{id}
+        email: { type: string, format: email }
+        name_display:
+          type: string
+          description: 展示名（对应 users.name 列，避免与资源名冲突）。
+        kind:
+          type: string
+          enum: [user, service]
+        status:
+          type: string
+          enum: [active, disabled]
+        source:
+          type: string
+          description: local | oidc | ldap | oauth2 | scim
+        mfa_enabled: { type: boolean }
+        last_login_at: { type: string, format: date-time }
+        create_time: { type: string, format: date-time }
+        update_time: { type: string, format: date-time }
+    CreateUserRequest:
+      type: object
+      required: [user]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        password:
+          type: string
+          description: 初始密码（仅 local 账号）。
+    ListUsersResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/User' }
+        next_page_token: { type: string }
+    ChangePasswordRequest:
+      type: object
+      required: [old_password, new_password]
+      properties:
+        old_password: { type: string }
+        new_password:
+          type: string
+          minLength: 12
+    MfaSetupResponse:
+      type: object
+      properties:
+        secret:
+          type: string
+          description: TOTP secret（置顶，仅本次返回）。
+        otpauth_uri: { type: string }
+        recovery_codes:
+          type: array
+          items: { type: string }
+    Group:
+      type: object
+      properties:
+        name:
+          type: string
+          description: groups/{name}
+        display_name: { type: string }
+        source:
+          type: string
+          description: manual | idp:<provider>
+        create_time: { type: string, format: date-time }
+        update_time: { type: string, format: date-time }
+    AddGroupMemberRequest:
+      type: object
+      required: [member]
+      properties:
+        member:
+          type: string
+          description: users/{id}
+    GroupMember:
+      type: object
+      properties:
+        user: { type: string, description: "users/{id}" }
+        email: { type: string }
+        added_at: { type: string, format: date-time }
+    ListGroupsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Group' }
+        next_page_token: { type: string }
+    ListGroupMembersResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/GroupMember' }
+        next_page_token: { type: string }
+
+    # ───────── IdP ─────────
+    IdentityProvider:
+      type: object
+      properties:
+        name:
+          type: string
+          description: identityProviders/{name}
+        title: { type: string }
+        type:
+          type: string
+          enum: [oidc, oauth2, ldap]
+        domain: { type: string }
+        config:
+          type: object
+          additionalProperties: true
+          description: 协议特定【非敏感】参数（issuer/client_id/host/base_dn …）。
+        secret_ref:
+          type: string
+          description: 外部 Secret Manager 引用（非空时优先）。
+        field_mapping:
+          type: object
+          additionalProperties: true
+          description: '{identifier, display_name, phone, groups}'
+        enabled: { type: boolean }
+    TestIdentityProviderRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          description: 授权码（OIDC/OAuth2）或测试凭据。
+        redirect_uri: { type: string }
+    IdentityProviderUserInfo:
+      type: object
+      properties:
+        identifier: { type: string }
+        display_name: { type: string }
+        email: { type: string }
+        groups:
+          type: array
+          items: { type: string }
+    ListIdentityProvidersResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/IdentityProvider' }
+
+    # ───────── Worksheet / Favorite ─────────
+    Worksheet:
+      type: object
+      properties:
+        name:
+          type: string
+          description: projects/{p}/worksheets/{id}
+        project: { type: string }
+        database:
+          type: string
+          description: projects/{p}/instances/{i}/databases/{d}
+        title: { type: string }
+        content: { type: string }
+        visibility:
+          type: string
+          enum: [PRIVATE, PROJECT]
+        creator:
+          type: string
+          description: users/{id}
+        create_time: { type: string, format: date-time }
+        update_time: { type: string, format: date-time }
+        etag: { type: string }
+    ListWorksheetsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Worksheet' }
+        next_page_token: { type: string }
+    Favorite:
+      type: object
+      properties:
+        name:
+          type: string
+          description: users/{user}/favorites/{id}
+        worksheet:
+          type: string
+          description: projects/{p}/worksheets/{id}
+        create_time: { type: string, format: date-time }
+    ListFavoritesResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Favorite' }
+        next_page_token: { type: string }
+
+    # ───────── 通知 / 设置 / 认证 ─────────
+    Notification:
+      type: object
+      properties:
+        name:
+          type: string
+          description: users/{user}/notifications/{id}
+        type:
+          type: string
+          description: export_done | system
+        title: { type: string }
+        body: { type: string }
+        link: { type: string }
+        read_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: null=未读。
+        create_time: { type: string, format: date-time }
+    ListNotificationsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Notification' }
+        next_page_token: { type: string }
+    UnreadCountResponse:
+      type: object
+      required: [count]
+      properties:
+        count: { type: integer }
+    Setting:
+      type: object
+      properties:
+        key: { type: string }
+        value: { type: object, additionalProperties: true }
+        update_time: { type: string, format: date-time }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+        # SSO
+        idp: { type: string, description: OIDC/OAuth2 提供商 name。 }
+        code: { type: string, description: 授权码。 }
+        # MFA 第二步
+        mfa_temp_token: { type: string }
+        otp_code: { type: string }
+        recovery_code: { type: string }
+    LoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: API 端；Web 端走 Cookie（响应体可为空）。
+        refresh_token: { type: string }
+        mfa_temp_token:
+          type: string
+          description: 需 MFA 时返回（此时 access_token 为空）。
+        user: { $ref: '#/components/schemas/User' }
+        workspace:
+          type: string
+          description: 固定工作区名。
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token: { type: string }
+    RefreshResponse:
+      type: object
+      required: [access_token]
+      properties:
+        access_token: { type: string }
+        refresh_token:
+          type: string
+          description: 可选轮换后的新 refresh token。
+    PasswordResetRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email }
+    PasswordResetConfirmRequest:
+      type: object
+      required: [reset_token, new_password]
+      properties:
+        reset_token: { type: string }
+        new_password:
+          type: string
+          minLength: 12
+    CsrfResponse:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }
+        expires_in: { type: integer }
+

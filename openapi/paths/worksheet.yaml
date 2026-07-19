@@ -1,0 +1,210 @@
+  /v1/projects/{project}/worksheets:
+    post:
+      tags: [Worksheet]
+      operationId: createWorksheet
+      summary: 创建 Worksheet
+      description: 保存的查询；可见性 PRIVATE/PROJECT（分享只传递 SQL 文本，D18/D36）。
+      x-requires-permission: ""
+      x-audit: false
+      x-auth-method: CUSTOM
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - $ref: '../components.yaml#/components/parameters/XRequestId'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/Worksheet'
+      responses:
+        '200':
+          description: 已创建
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Worksheet'
+        '400': { $ref: '../components.yaml#/components/responses/Error' }
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/projects/{project}/worksheets/{worksheet}:
+    get:
+      tags: [Worksheet]
+      operationId: getWorksheet
+      summary: 获取 Worksheet
+      x-requires-permission: ""
+      x-audit: false
+      x-auth-method: CUSTOM
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - name: worksheet
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: worksheet 详情
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Worksheet'
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    patch:
+      tags: [Worksheet]
+      operationId: updateWorksheet
+      summary: 更新 Worksheet
+      description: "乐观锁；`If-Match: <etag>`，不匹配 → `409 CONCURRENT_MODIFICATION`。"
+      x-requires-permission: ""
+      x-audit: false
+      x-auth-method: CUSTOM
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - name: worksheet
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '../components.yaml#/components/parameters/IfMatch'
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '../components.yaml#/components/schemas/Worksheet'
+      responses:
+        '200':
+          description: 更新后的 worksheet
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/Worksheet'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        '409': { $ref: '../components.yaml#/components/responses/Conflict' }
+        '412': { $ref: '../components.yaml#/components/responses/PreconditionFailed' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+    delete:
+      tags: [Worksheet]
+      operationId: deleteWorksheet
+      summary: 删除 Worksheet（soft）
+      x-requires-permission: ""
+      x-audit: false
+      x-auth-method: CUSTOM
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - name: worksheet
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      responses:
+        '204':
+          description: 已删除
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/projects/{project}/worksheets/{worksheet}:favorite:
+    post:
+      tags: [Worksheet]
+      operationId: favoriteWorksheet
+      summary: 收藏 Worksheet
+      x-requires-permission: ""
+      x-audit: false
+      x-auth-method: CUSTOM
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - name: worksheet
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      responses:
+        '204':
+          description: 已收藏
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/projects/{project}/worksheets/{worksheet}:unfavorite:
+    post:
+      tags: [Worksheet]
+      operationId: unfavoriteWorksheet
+      summary: 取消收藏 Worksheet
+      x-requires-permission: ""
+      x-audit: false
+      x-auth-method: CUSTOM
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - name: worksheet
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '../components.yaml#/components/parameters/XCSRFToken'
+      responses:
+        '204':
+          description: 已取消收藏
+        '404': { $ref: '../components.yaml#/components/responses/NotFound' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/projects/{project}/worksheets:search:
+    get:
+      tags: [Worksheet]
+      operationId: searchWorksheets
+      summary: 检索 Worksheet
+      description: 返回项目内调用者可见的 worksheet（可见性 + 归属）。
+      x-requires-permission: ""
+      x-audit: false
+      x-auth-method: CUSTOM
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/Project'
+        - name: keyword
+          in: query
+          required: false
+          schema: { type: string }
+        - name: database
+          in: query
+          required: false
+          schema: { type: string }
+        - $ref: '../components.yaml#/components/parameters/PageSize'
+        - $ref: '../components.yaml#/components/parameters/PageToken'
+      responses:
+        '200':
+          description: worksheet 列表
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/ListWorksheetsResponse'
+        '403': { $ref: '../components.yaml#/components/responses/Forbidden' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
+
+  /v1/users/me/favorites:
+    get:
+      tags: [Worksheet]
+      operationId: listMyFavorites
+      summary: 我的收藏
+      description: 当前用户的收藏书签（指向 worksheet）。
+      x-requires-permission: ""
+      x-audit: false
+      x-auth-method: CUSTOM
+      parameters:
+        - $ref: '../components.yaml#/components/parameters/PageSize'
+        - $ref: '../components.yaml#/components/parameters/PageToken'
+      responses:
+        '200':
+          description: 收藏列表
+          content:
+            application/json:
+              schema:
+                $ref: '../components.yaml#/components/schemas/ListFavoritesResponse'
+        '401': { $ref: '../components.yaml#/components/responses/Unauthorized' }
+        default: { $ref: '../components.yaml#/components/responses/Error' }
+
