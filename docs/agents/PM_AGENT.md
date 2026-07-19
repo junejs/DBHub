@@ -56,8 +56,27 @@ Solution Design ─方案文档(../prd/design/)─→ 你（PM）
 
 > multica 的 stage 是 **barrier**：epic 的 assignee（你）在某 stage **所有**子 issue 完成时才被唤醒——这正是你做 gate 的时机。
 
-### 2.3 分阶段建子 issue（推荐，最可控）
-不要一次建完所有 stage 的子 issue。**先建 stage 1 并置 `todo`**；stage 1 完成你被唤醒 → 检查契约产出 → 通过则建 stage 2；以此类推。这样保证依赖顺序，避免下游 agent 提前 pickup 空跑。
+### 2.3 是否需要 design stage（PRD 充分性判定）+ 分阶段建子 issue
+
+**先判定**：建 epic 后、建子 issue 前，对每个端到端切片做一次 **PRD 充分性判定**，决定要不要开 stage 1（设计）。对照下面四张清单逐条核对 PRD 是否已给出**落地结论**（不是只有概念描述）：
+
+| 维度 | PRD 落地结论在哪 | 充分 = |
+|---|---|---|
+| 数据结构 | `10-data-model.md` §3 DDL | 目标表/字段/索引/约束已在 §3 写明，或明显复用既有表 |
+| API 契约 | `12-api-contract.md` + `openapi.yaml` | 资源路径 + 方法 + `operationId` + `x-` 扩展 + 错误码已在 `12`/openapi 写明 |
+| 边界/异常 | `14-edge-cases.md` A–H | 该功能涉及的删除/并发/分页/断连等已在 A–H 给默认行为 |
+| 决策依据 | `11-decisions.md` D## | 涉及的选型/约束已有对应 D## |
+
+- **四项全充分 → 跳过 stage 1**，直接建 stage 2（实现）issue 给 Implementation Agent，描述里引用 PRD 对应 §x.x 作为它的输入。
+- **任一不充分 → 开 stage 1** 给 Solution Design Agent，补齐缺失维度（触发条件见 `SOLUTION_DESIGN_AGENT.md` §3.0）。
+
+> 判据：是否需要 design stage 取决于“PRD 给的结论够不够 Implementation 照图施工”，不取决于“功能大不大”。功能大但 PRD 已充分 → 直接实现；功能小但 PRD 没写 → 仍要走 design。
+
+**再分阶段建子 issue**：不要一次建完所有 stage 的子 issue。
+
+- **跳过 stage 1 的情况**：直接建 stage 2 实现 issue；stage 2 完成你被唤醒 → 建 stage 3。
+- **开 stage 1 的情况**：先建 stage 1 并置 `todo`；stage 1 完成你被唤醒 → 检查契约产出 → 通过则建 stage 2；以此类推。
+- 这样保证依赖顺序，避免下游 agent 提前 pickup 空跑。
 
 ### 2.4 每个_issue 必须有依据
 - 标题/描述关联 **PRD `§`** + **`D##`** + **agent_team 对应章节**。

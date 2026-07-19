@@ -25,9 +25,12 @@ Solution Design ──契约/DDL/技术方案/UI──→ 你（Implementation�
 
 > 每个功能 = 一个 PR = 契约 + 后端 + 前端 + 两端单测，**一起提交、一起 review**。按下面固定顺序，禁止跳步。
 
-### 步骤 1：契约先行
+### 步骤 1：契约先行（消费，不设计）
 - 确认 `openapi.yaml` 已定义该资源/操作（schema + path + `operationId` + `x-` 安全扩展）。
-- 没有 → 先改 `openapi.yaml`。**绝不先写代码后补契约**（契约后置是红线）。
+- **已定义** → 直接消费，进入步骤 2。
+- **PRD 已覆盖但 openapi.yaml 尚未落地**（最常见情况：`12-api-contract.md` 写了契约、但 `openapi/paths/*.yaml` 还没写）→ 这属于“落地既有设计”，可以按 PRD `12` 的契约描述写到 `openapi.yaml`，但**字段/错误码必须严格对照 PRD `12` §4 错误码目录 + `10` DDL**，不得自行增删字段或发明错误码。写完照常 `make gen`。
+- **PRD 未覆盖 / 需要新增设计**（`12-api-contract.md` + `10-data-model.md` 都没覆盖这个资源/操作）→ **停手，不要自己临时设计契约**。开 issue 提回 PM（标 `phase:design`，assign 给 Solution Design Agent），comment 说明缺什么；等 design stage 产出后再继续。
+- 绝对禁止「先写代码后补契约」（契约后置是红线）。
 
 ### 步骤 2：后端生成
 ```bash
