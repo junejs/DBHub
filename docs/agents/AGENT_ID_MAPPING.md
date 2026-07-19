@@ -1,0 +1,5 @@
+- ProjectManager: 49d4651d-b7fc-42ba-8791-176b1f7f5790
+- SolutionArchitect: 5d1c0039-ccd7-4cb0-a763-46d466874a95
+- Developer: 264997d3-7c81-4514-8e31-f27665385e77
+- CodeReviewer: d1e909dd-3a4f-480f-aece-6a34405f6b34
+- Tester: bb2433df-4ff7-44f3-b33c-9a9cd78e782d
