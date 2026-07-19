@@ -31,7 +31,7 @@ func (r *recordingRepo) List(_ context.Context, limit int, _ string) ([]service.
 func TestHandler_ListProjects_MapsDomainToContract(t *testing.T) {
 	h := NewHandler(service.NewProjectService(stubRepo{items: []service.Project{
 		{Key: "orders", Title: "Orders", Description: "order mgmt"},
-	}}))
+	}}), nil)
 
 	res, err := h.ListProjects(context.Background(), oas.ListProjectsParams{})
 	require.NoError(t, err)
@@ -48,7 +48,7 @@ func TestHandler_ListProjects_MapsDomainToContract(t *testing.T) {
 
 func TestHandler_ListProjects_PassesPageSize(t *testing.T) {
 	var seen int
-	h := NewHandler(service.NewProjectService(&recordingRepo{seen: &seen}))
+	h := NewHandler(service.NewProjectService(&recordingRepo{seen: &seen}), nil)
 
 	_, err := h.ListProjects(context.Background(), oas.ListProjectsParams{
 		PageSize: oas.OptInt{Value: 7, Set: true},
@@ -59,7 +59,7 @@ func TestHandler_ListProjects_PassesPageSize(t *testing.T) {
 
 func TestHandler_ListProjects_DefaultsPageSizeWhenAbsent(t *testing.T) {
 	var seen int
-	h := NewHandler(service.NewProjectService(&recordingRepo{seen: &seen}))
+	h := NewHandler(service.NewProjectService(&recordingRepo{seen: &seen}), nil)
 
 	_, err := h.ListProjects(context.Background(), oas.ListProjectsParams{})
 	require.NoError(t, err)
@@ -67,9 +67,18 @@ func TestHandler_ListProjects_DefaultsPageSizeWhenAbsent(t *testing.T) {
 }
 
 func TestHandler_Healthz(t *testing.T) {
-	h := NewHandler(service.NewProjectService(stubRepo{}))
+	h := NewHandler(service.NewProjectService(stubRepo{}), nil)
 	res, err := h.Healthz(context.Background())
 	require.NoError(t, err)
 	body, _ := io.ReadAll(res.Data)
 	assert.Equal(t, "ok", string(body))
+}
+
+func TestHandler_Readyz_NilDBReturnsOK(t *testing.T) {
+	// When no platform DB is wired (unit test mode), /readyz stays ready.
+	h := NewHandler(service.NewProjectService(stubRepo{}), nil)
+	res, err := h.Readyz(context.Background())
+	require.NoError(t, err)
+	_, ok := res.(*oas.ReadyzOK)
+	assert.True(t, ok, "expected ReadyzOK with nil platform DB")
 }

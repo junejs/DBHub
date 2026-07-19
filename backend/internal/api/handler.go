@@ -8,6 +8,9 @@ import (
 	"context"
 	"strings"
 
+	"github.com/uptrace/bun"
+
+	"github.com/junepy/dbhub/backend/internal/infra/db"
 	"github.com/junepy/dbhub/backend/internal/oas"
 	"github.com/junepy/dbhub/backend/internal/service"
 )
@@ -19,20 +22,32 @@ import (
 type Handler struct {
 	oas.UnimplementedHandler
 	projects *service.ProjectService
+	platform *bun.DB // platform metadata DB (nil = /readyz always ready)
 }
 
-func NewHandler(projects *service.ProjectService) *Handler {
-	return &Handler{projects: projects}
+func NewHandler(projects *service.ProjectService, platform *bun.DB) *Handler {
+	return &Handler{projects: projects, platform: platform}
 }
 
-// Healthz implements healthz.
+// Healthz implements healthz. Liveness probe — process is up. MUST NOT require
+// external dependencies (per PRD 16-ops §1).
 func (h *Handler) Healthz(_ context.Context) (oas.HealthzOK, error) {
 	return oas.HealthzOK{Data: strings.NewReader("ok")}, nil
 }
 
-// Readyz implements readyz.
-func (h *Handler) Readyz(_ context.Context) (oas.ReadyzRes, error) {
-	// TODO(v1): 校验平台元数据库连通后再返回 ready。
+// Readyz implements readyz. Readiness probe — process is up AND platform PG is
+// reachable. When platform DB is not configured (e.g. in-process tests), returns
+// 200 unconditionally to keep existing tests working.
+func (h *Handler) Readyz(ctx context.Context) (oas.ReadyzRes, error) {
+	if h.platform == nil {
+		return &oas.ReadyzOK{Data: strings.NewReader("ready")}, nil
+	}
+	if err := db.Ping(ctx, h.platform); err != nil {
+		return &oas.Error{
+			Code:    503,
+			Message: "platform DB unreachable",
+		}, nil
+	}
 	return &oas.ReadyzOK{Data: strings.NewReader("ready")}, nil
 }
 

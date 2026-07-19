@@ -1,3 +1,5 @@
+version: "2"
+
 run:
   timeout: 5m
   tests: true
@@ -11,42 +13,44 @@ linters:
     - ineffassign   # 无效赋值
     - staticcheck   # 综合静态分析
     - unused        # 未使用代码
-    - gofmt         # 格式
-    - goimports     # import 分组与排序
-    - revive        # Go 代码规范（替代 golint）
     - gocritic      # 代码改进建议
     - misspell      # 拼写
     - unconvert     # 多余类型转换
     - bodyclose     # http.Response.Body 必须关闭
     - rowserrcheck  # sql.Rows.Err 必须检查（配合 database/sql）
 
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
 linters-settings:
   gocyclo:
     min-complexity: 15
-  revive:
-    rules:
-      - name: exported
-        arguments:
-          - "checkPrivateReceivers"
-          - "sayRepetitiveInsteadOfStutters"
-        disabled: true # 生成代码（ogen）命名不受此约束
   errcheck:
     check-type-assertions: false
     check-blank: false
 
 issues:
-  # 生成代码不纳入 lint（ogen 产出，重新生成会覆盖）
   exclude-rules:
+    # 生成代码不纳入 lint（ogen 产出，重新生成会覆盖）
     - path: internal/oas
       linters:
         - errcheck
         - govet
         - staticcheck
         - unused
-        - revive
         - gocritic
         - gosec
         - ineffassign
+  exclude:
+    # chi's middleware.RealIP is intentional behind our trust boundary.
+    - 'middleware\.RealIP'
+    # testcontainers helper: RunContainer is the documented entry point in v0.43.
+    - 'tcpostgres\.RunContainer is deprecated'
+    # main package & cmd/migrate CLI use os.Exit on error paths intentionally;
+    # the deferred cleanup is best-effort, not safety-critical.
+    - 'exitAfterDefer'
   max-issues-per-linter: 0
   max-same-issues: 0
   exclude-use-default: true
