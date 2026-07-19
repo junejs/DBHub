@@ -35,3 +35,6 @@ temp/
 
 # AI tools - generated code (never hand-edit)
 backend/internal/oas/
+
+# AI agent definitions (not source code context)
+docs/agents/
