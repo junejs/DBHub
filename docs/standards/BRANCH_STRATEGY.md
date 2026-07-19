@@ -76,6 +76,7 @@ gitGraph
 | `test/` | 仅补测试 | `test/iam-matrix` |
 | `chore/` | 构建/依赖/脚手架/生成物同步 | `chore/upgrade-ogen` |
 | `hotfix/` | 紧急修复（走快速 PR，见 §8.2） | `hotfix/login-lockout` |
+| `change/` | **OpenSpec change 驱动的端到端切片**（跨 stage 多 agent 接力，见 §4.1） | `change/add-instance-management` |
 
 **规则：**
 
@@ -84,6 +85,8 @@ gitGraph
 - 分支名要能自解释；避免 `wip`、`tmp`、`x` 这类无意义名。
 - 命名中的业务术语用 [GLOSSARY.md](./GLOSSARY.md) 的统一语言（如 `feat/worksheet-share`，不是 `feat/saved-query-share`）。
 - 单仓前后端改动可放同一分支（见 §7），除非改动很大需拆分。
+
+> **OpenSpec change 驱动的改动一律用 `change/` 前缀**（不用 `feat/`/`fix/`），分支名 = `change/<change-name>`，从 change name 派生，agent 间流转无需单独告知分支名。详见 §4.1。
 
 ### 3.3 不引入的分支
 
@@ -105,6 +108,27 @@ gitGraph
 | **长寿阈值** | 单分支超过 **3 个工作日**未合并需在 PR 说明原因；超 **1 周**强制 rebase 或拆分 |
 
 > 不要在他人分支上直接 push；要改就开新分支或用建议（suggestion）/评论。
+
+### 4.1 OpenSpec change 分支的接力生命周期
+
+一个 OpenSpec change = 一个 `change/<name>` 分支 = 一个 PR。多个 agent 在**同一分支**上接力提交，不互相拆 PR。分支名从 change name 派生，agent 间流转只传 change name。
+
+| 阶段 | 负责人 | 动作 | 分支状态 |
+|---|---|---|---|
+| stage 1（按需） | Solution Design Agent | 首个动代码者：`git switch -c change/<name> main`；commit `openapi.yaml` 改动 + `make gen` 产物 | 已建，无 PR |
+| stage 2 | Implementation Agent | 接力同分支：checkout 现有分支（无则自建）；commit 后端+前端+两端单测；创建 draft PR；stage 2 done 时标记 ready for review | draft → ready |
+| stage 3 | Test Agent | 接力同分支：checkout；commit 集成/e2e/越权测试 | ready，CI 跑 |
+| stage 3 | CodeReview Agent | 在 PR 上做 review；approve 或打回；**不直接 commit**（意见交 Implementation 改） | ready，待 review |
+| merge | Implementation Agent | CodeReview approve + Test 绿 → 执行 squash merge；删分支 | merged |
+| archive | PM Agent | merge 后跑 `openspec archive` | — |
+
+**约束：**
+
+- 分支**只在第一个动代码的 agent 处创建**（stage 1 跑→Solution Design；跳过→Implementation），后续 agent `git switch change/<name>` 或 `git fetch && git switch change/<name>`（远端协作时）。
+- 所有改动**同一分支同一 PR**，不拆 backend/frontend PR（违反 fullstack 切片纪律，见 `docs/agents/PM_AGENT.md` §2.1）。
+- PR 由 Implementation 创建为 **draft**（stage 2 进行中），stage 2 done 改 **ready**（可审查）；CodeReview 才有正式 review 对象。
+- merge 权归 **Implementation（PR 所有者）**；CodeReview 只 approve、不 merge。
+- PR 描述引用 change name + OpenSpec change 目录路径。
 
 ---
 
@@ -304,6 +328,31 @@ git switch -c feat/my-feature origin/main
 # ...开发，原子提交...
 git push -u origin feat/my-feature
 # GitHub 上开 PR，等 CI + review
+```
+
+### 开 OpenSpec change（change/ 前缀）
+```bash
+# stage 1 跑：Solution Design 首个动代码
+git switch -c change/<change-name> main
+# ...commit openapi 改动 + make gen...
+git push -u origin change/<change-name>
+
+# stage 2：Implementation 接力
+git fetch origin && git switch change/<change-name>   # 远端协作；本地接力直接 git switch
+# ...commit 后端+前端+单测...
+gh pr create --draft --title "<conventional-summary>" --body "OpenSpec change: <change-name>"
+# stage 2 done:
+gh pr ready <PR-NUMBER>
+
+# stage 3：Test 接力
+git switch change/<change-name>
+# ...commit 集成测试...
+
+# CodeReview 在 PR 上 approve；Implementation 执行 merge：
+gh pr merge <PR-NUMBER> --squash --delete-branch
+
+# PM: merge 后 archive
+openspec archive "<change-name>"
 ```
 
 ### 同步上游（保持新鲜）
