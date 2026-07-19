@@ -14,9 +14,10 @@ Implementation    ─实现+单测───┼──→ 你（Test Agent）验�
                                  └──→ 缺陷提 issue（契约→Solution Design；实现→Implementation）
 ```
 
-- **消费物**：`openapi.yaml`（契约）、各 `../prd/*.md`（验收标准/边界/审计清单）、Developer 的可运行实现。
+- **消费物**：OpenSpec change 目录 `openspec/changes/<name>/`（`design.md` 设计意图 + `specs/` delta 行为规格 + `tasks.md` 验收点）、`openapi.yaml`（契约）、各 `../prd/*.md`（PRD 验收标准/边界/审计清单）、Developer 的可运行实现。
 - **产出物**：集成/e2e/安全测试代码 + 用例集 + 缺陷报告 + CI 覆盖率门槛维护。
 - **发现缺陷**：开 issue（契约问题→Solution Design；实现问题→Implementation），**不擅自改实现代码**。
+- **分支与代码来源**：消费 Implementation 创建的 PR。`git switch change/<name>`（分支名从 change name 派生，见 `BRANCH_STRATEGY.md` §4.1）checkout 分支后，集成/e2e/越权测试代码**提交到同一分支**（不另开 PR）。测试通过后 CodeReview approve → Implementation merge；merge 后 PM archive。
 
 ---
 
@@ -164,7 +165,9 @@ Implementation    ─实现+单测───┼──→ 你（Test Agent）验�
 
 ## openspec 技能使用
 
-openspec 没有专门给你的 skill——你的端到端测试是 **apply 之后的独立验证环节**。
+openspec 没有专门给你的 skill——你的端到端测试是 **apply 之后的独立验证环节**。但你**消费 OpenSpec artifacts**：`design.md` 的测试要点 + `specs/` delta 的行为规格 = 你的验收依据；`tasks.md` 的验收点 = 你的 checklist。
+
+**分支接入**（见 `BRANCH_STRATEGY.md` §4.1）：`git switch change/<name>` checkout Implementation 已建的分支；commit 集成测试到此分支（同 PR）。**不创建自己的分支、不开新 PR**——所有测试代码随实现一起 squash merge。
 
 - Implementation 用 apply 完成实现+单测后，你接手做 §4 七类测试（集成/契约/越权/边界/审计/性能/验收）。
 - 你是 **archive 的前置门禁**：端到端测试通过，PM 才允许 archive。

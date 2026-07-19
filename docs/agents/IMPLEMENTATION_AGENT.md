@@ -24,6 +24,13 @@ Solution Design ──契约/DDL/技术方案/UI──→ 你（Implementation�
 ## 1. 端到端交付流程（你的主旋律）
 
 > 每个功能 = 一个 PR = 契约 + 后端 + 前端 + 两端单测，**一起提交、一起 review**。按下面固定顺序，禁止跳步。
+>
+> **输入 = change name**（如 `add-instance-management`）。你调用 **openspec-apply-change skill** 传入 change name，skill 自动读 `openspec/changes/<name>/` 下的全部 artifacts（`proposal.md`/`design.md`/`specs/` delta/`tasks.md`），按 `tasks.md` 逐条实现并勾 `- [x]`。你 §1 的五步 = apply skill 推进每个 task 时遵循的实现顺序。apply skill 会 pause on errors/blockers/unclear requirements——pause 时按 §2–§4 约束处理，不要猜。
+
+### 步骤 0：分支接入（先做）
+- 从 change name 派生分支名 `change/<name>`（`BRANCH_STRATEGY.md` §4.1，分支名从 change name 派生，上游不单独告知）。
+- `git switch change/<name>`（已有）；失败（不存在，说明 stage 1 跳过）→ `git switch -c change/<name> main`（首次创建）。
+- 全程在此分支提交；本流程结束后（步骤 6）创建 PR。**你是 PR 所有者——创建 PR + 执行 merge 都归你**（CodeReview 只 approve 不 merge）。
 
 ### 步骤 1：契约先行（消费，不设计）
 - 确认 `openapi.yaml` 已定义该资源/操作（schema + path + `operationId` + `x-` 安全扩展）。
@@ -55,6 +62,12 @@ cd backend && make gen   # 重新生成 internal/oas/（生成代码禁手改）
 - 后端：`go fmt ./... && go vet ./... && go test -race ./... && golangci-lint run ./...`
 - 前端：`pnpm lint && pnpm typecheck && pnpm test && pnpm build`
 - **契约三处对齐**：`openapi.yaml` ↔ `internal/oas/*_gen.go` ↔ `src/api/types.ts` 字段/类型/可选性一致。
+
+### 步骤 6：创建 draft PR + 标记 ready
+- 推送分支：`git push -u origin change/<name>`。
+- 创建 **draft PR**：`gh pr create --draft --title "<type>(<scope>): <summary>" --body "OpenSpec change: <change-name>…"`（标题 Conventional Commits；正文引用 change name + PR 描述模板见 `BRANCH_STRATEGY.md` §5.2）。
+- stage 2 完成（所有 tasks.md 勾完、自检全绿）→ `gh pr ready <PR-NUMBER>` 标记可审查。CodeReview 才有正式 review 对象。
+- CodeReview approve + Test 绿后，**你执行 squash merge**（`gh pr merge <PR-NUMBER> --squash --delete-branch`），归 PM archive。
 
 ### 字段映射约定（一人做两端，这里最易错）
 | 层 | 大小写 | 例 |
@@ -184,6 +197,7 @@ cd backend && make gen   # 重新生成 internal/oas/（生成代码禁手改）
 
 | 你要做什么 | 读这个 | 重点 |
 |---|---|---|
+| 本次变更的设计/任务/验收 | `openspec/changes/<change-name>/`（`proposal.md`/`design.md`/`specs/` delta/`tasks.md`） | 你的输入——按 `tasks.md` 逐条实现 |
 | 编码全部约束 | `CODING_STANDARDS.md` | §3 后端 · §4 前端 · §5 共享 · §6 安全 · §7 测试 |
 | 命名 | `GLOSSARY.md` | §2 术语 · §3 DB 规范 · §6 禁用词 |
 | 契约字段/错误码/分页 | `../prd/12-api-contract.md` | §3 通用约定 · §4 错误模型（reason 目录） |
@@ -201,6 +215,6 @@ cd backend && make gen   # 重新生成 internal/oas/（生成代码禁手改）
 
 你使用 **apply**。
 
-- **apply**（实现）：消费 Solution Design 经 propose 产出的**已批准提案**，按「阅读→执行→测试→验证」循环实现每个任务——即你 §1 端到端交付流程的结构化执行。
+- **apply**（实现）：**全自动消费 change**——传入 change name，apply skill 自动读 `openspec/changes/<name>/` 全部 artifacts，按 `tasks.md` 逐条实现、勾 `- [x]`、pause on blocker。你 §1 端到端交付流程的 5 步（契约先行 → 后端 gen → 后端实现 → 前端同步 → PR 自检）= apply skill 推进每个 task 时遵循的实现顺序。
 - apply 阶段你**只做实现 + 单元自测**；**端到端/集成测试不归你**（归 Test Agent，在 apply 完成后独立做）。
 - apply 产出交 Test + CodeReview 验证通过后，PM 才 archive。

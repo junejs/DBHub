@@ -103,9 +103,9 @@ PM 在建 stage 1 设计 issue 前会做 PRD 充分性判定（见 `PM_AGENT.md`
 1. **范围判定**：需求是否在 v1？对照 `18-roadmap.md`。若属 v2/未来，直接输出范围判定结论并停止。
 2. **定位文档**：按下文「参考文件索引」找到需求对应的 PRD 模块文档（`00`–`16`），先读它，理解既有约定。
 3. **复用优先**：在 `10-data-model.md` 找既有表、在 `12-api-contract.md`+`openapi.yaml` 找既有资源/错误码、在 `GLOSSARY.md` 找术语。**能复用就不新增**。
-4. **设计**：产出数据结构 / API / 技术方案三件套（按需），每处标注引用的 `D##` / `§x`。
+4. **设计**：产出数据结构 / API / 技术方案三件套（按需），每处标注引用的 `D##` / `§x`。这些内容将填入 OpenSpec change 的 `design.md`（见 §5）。
 5. **自检**：逐条过 §2 检查清单；命名再过一遍 `GLOSSARY.md` §6 禁用词。
-6. **输出**：按下文「输出格式」写方案文档，并在末尾给出「决策索引」与「待确认问题」。
+6. **调用 propose skill 产出 change**：把步骤 1–5 的思考结果按 §5.1 组织成一段描述，调用 **openspec-propose skill**，skill 全自动产出完整 change（§5.2）。review 产出物（§5.3），交付 **change name** 给 PM（§5.4）。
 
 ---
 
@@ -132,58 +132,61 @@ PM 在建 stage 1 设计 issue 前会做 PRD 充分性判定（见 `PM_AGENT.md`
 
 ---
 
-## 5. 输出格式（方案文档模板）
+## 5. 输出格式（OpenSpec 变更产物）
 
-> 产出一份 Markdown，放 `../prd/design/`（目录不存在则新建），文件名 `feat-<slug>.md`。结构如下，**没有内容的章节写「N/A」而非删除**：
+> 产出物 = 一个 **change name**（如 `add-instance-management`）。**你不是手工填 artifact 文件**——你调用 **openspec-propose skill**，skill 自动跑 `openspec new change` + 循环 `openspec instructions`，把 `proposal.md` / `design.md` / `specs/` delta / `tasks.md` 全部生成到 `openspec/changes/<change-name>/`。你的职责是**准备好喂给 skill 的输入**（§5.1）——skill 不懂项目纪律，产出质量取决于你的输入质量。**不再写 `../prd/design/feat-<slug>.md`**（该约定废弃）。
 
+### 5.1 调用 propose skill 前，准备好输入
+
+propose skill 期望一段自然语言描述（"what do you want to build"），它从中 derive change name 并自动产出所有 artifact。skill 本身不懂项目纪律，所以你要把 §3.1 步骤 1–5 的思考结果组织成描述喂给它：
+
+- **change name**（kebab-case，如 `add-instance-management`）
+- **what & why**：要做什么、解决什么问题（一句话）
+- **范围**：v1 ✅ 还是 v2（引用 `18 §x.x`）
+- **PRD 锚点**：`../prd/<nn>.md §x.x`（skill 会读这些章节作为素材）
+- **涉及的 D##**：`11-decisions.md` 里的决策编号
+- **关键设计约束**：你在 §2 自检出的硬约束——术语（GLOSSARY §2 出处）、`x-` 安全扩展、边界默认行为（14-edge-cases A–H 条目）、错误码复用还是新增、分层归属、依赖的 interface（D50）
+
+> §3.1 步骤 1–5 的思考（范围判定、复用查找、设计、自检）就是准备这段输入的过程，不要跳过。
+
+### 5.2 调用 propose skill，自动产出 change
+
+把 §5.1 准备好的描述作为输入，调用 openspec-propose skill。skill 全自动执行：
+
+1. `openspec new change "<name>"` 建骨架
+2. `openspec status --change "<name>" --json` 拿 artifact 依赖顺序 + `applyRequires`
+3. 循环：对每个 ready artifact 跑 `openspec instructions` 拿 template + rules，按 template 填充写到 `resolvedOutputPath`
+4. 验证所有 `applyRequires` artifact 都 `done`
+
+产出路径：`openspec/changes/<change-name>/{proposal.md, design.md, specs/<capability>/spec.md, tasks.md}`。每个 artifact 填什么由 skill 根据 template + 你 §5.1 的输入决定——大致映射：proposal = what&why+范围+D##+待确认；design = DDL+API+技术方案+边界+安全+测试要点；specs delta = 可观察行为变更；tasks = 按 `IMPLEMENTATION_AGENT.md` §1 五步拆的 `- [ ]` 清单。
+
+### 5.3 review 产出物 + 修订
+
+skill 产出后，你读一遍 artifacts 核对是否符合 §2 纪律（术语、`x-` 安全扩展、边界默认行为、错误码、`D##` 引用）。需要修订时调用 **openspec-update-change skill**——**不要手工编辑 `openspec/changes/<name>/*.md`**，update-change skill 会保持 artifacts 之间的一致性。
+
+> specs delta 判据：改了可观察行为（新增 API 资源/操作、改错误码语义、改边界默认行为）→ skill 通常会产出 specs delta；纯内部重构 → 可省。不确定时让 skill 产出——多写比少写好，archive 时主 specs 才会更新。
+
+### 5.4 交付
+
+propose skill 跑完会自行验证（`openspec status` 确认所有 `applyRequires` done）。你的交付物 = **change name**（一个字符串）。PM 用它做 stage gate + 派 Implementation；Implementation 用它调 openspec-apply-change skill。
+
+### 5.5 落地代码（stage 1 跑时）：创建 `change/` 分支
+
+若 PRD 充分、跳过 stage 1：你不动代码，PM 直接派 Implementation——分支由 Implementation 建（见 `IMPLEMENTATION_AGENT.md` §1 步骤 0）。
+
+若开 stage 1（§3.0 触发条件）：propose 产出 change 后，**你是首个动代码的 agent**，负责建分支 + commit 契约产物：
+
+```bash
+git switch -c change/<change-name> main    # 基于最新 main，分支名从 change name 派生
+# 把 openapi.yaml 改动 + cd backend && make gen 产物 commit 到此分支
+git push -u origin change/<change-name>
 ```
-# 方案：<标题>
 
-## 1. 背景与需求
-- 需求来源（链接 PRD 文档 / issue）
-- 要解决的问题（一句话）
+约束：
 
-## 2. 范围声明
-- v1 ✅ / v2（引用 18 §x.x）
-- 涉及的 D##：Dxx, Dxx
-
-## 3. 数据结构
-- DDL（遵循 10-data-model §1/§6；附迁移说明）
-- 复用 / 新增的表与理由
-- 索引（热路径）
-
-## 4. API 契约
-- 资源路径 + 方法 + operationId
-- x- 安全扩展（permission/audit/auth-method）
-- Request/Response schema 片段
-- 错误码（复用 12 §4.3 或登记新码）
-- 落地动作：openapi.yaml 改动点 + `make gen` + 同步 frontend/src/api/types.ts
-
-## 5. 技术方案
-- 归属分层（main/api/service/repo）
-- 依赖的 interface（D50）
-- 模块协作流程（参照 01 §7 写法）
-- 选型/新依赖（引用 19 + D##）
-
-## 6. 命名核对
-- 用到的术语（逐条标注 GLOSSARY §2 出处）
-- 禁用词自检结果（GLOSSARY §6）
-
-## 7. 边界与异常
-- 对照 14-edge-cases A–H 的逐条结论
-
-## 8. 安全自检
-- 对照 §2.5
-
-## 9. 测试要点
-- 成功 / 主错误 / 边界 三类用例（CODING_STANDARDS §3.8/§7）
-
-## 10. 决策索引
-- 本方案引用的所有 D## 及一句话理由
-
-## 11. 待确认问题
-- 需要人/产品拍板的开放问题
-```
+- 分支名 = `change/<change-name>`（`BRANCH_STRATEGY.md` §4.1），从 change name 派生，**不单独告知下游**。
+- 只 commit 契约产物（openapi 改动 + 生成代码）；**不写 service/handler/前端业务代码**（归 Implementation）。
+- 你交付 change name + 分支已建好；Implementation 用 change name 即可 checkout 现有分支接力。
 
 ---
 
@@ -197,6 +200,7 @@ PM 在建 stage 1 设计 issue 前会做 PRD 充分性判定（见 `PM_AGENT.md`
 6. **破坏既有数据模型**：改 v1 既有表结构而非向前兼容新增（违反 `18-roadmap.md` §4）。
 7. **无依据决策**：给选型/约束但不引用 `D##` 或文档 `§`。
 8. **吞错/拼接 SQL/明文凭据入库入日志**：违反 `CODING_STANDARDS.md` §6 安全底线。
+9. **手工填 artifact**：直接编辑 `openspec/changes/<name>/*.md` 文件而不调 propose skill；或写到 `../prd/design/` 而非 `openspec/changes/<name>/`。
 
 ---
 
@@ -205,6 +209,6 @@ PM 在建 stage 1 设计 issue 前会做 PRD 充分性判定（见 `PM_AGENT.md`
 你使用 **explore** + **propose**，覆盖「设计」的两阶段：
 
 - **explore**（探索）：接到需求、尚未定型时调用。做提案前调研——读代码、画架构图、列替代方案、澄清需求，**不实施**。产出是思考过程与候选方案，为 propose 铺路。
-- **propose**（提案）：探索收敛后调用，创建正式变更提案（OpenSpec 变更目录 + 初始结构）。你的 §2 设计纪律产出（DDL/API/方案 + `D##` 引用 + GLOSSARY 术语）就是 propose 的内容。
+- **propose**（提案）：探索收敛后调用。**propose 是全自动产出**——你把 §5.1 准备的描述作为输入，skill 自动跑 `openspec new change` + 循环 `openspec instructions` 把 `proposal.md`/`design.md`/`specs/` delta/`tasks.md` 全部生成出来。你的 §2 设计纪律思考 = 喂给 skill 的输入素材。需要修订用 **update-change** skill，不要手工改文件。
 
-**流程**：explore（调研）→ propose（成文提案）→ 审批 → 交 Implementation 用 apply 实现。
+**流程**：explore（调研）→ propose（自动产出 change）→ review（update-change 按需）→ 交付 change name → PM stage gate → Implementation 用 apply 实现。

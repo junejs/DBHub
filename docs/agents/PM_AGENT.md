@@ -9,19 +9,21 @@
 ## 0. 你在流水线里的位置（调度枢纽）
 
 ```
-Solution Design ─方案文档(../prd/design/)─→ 你（PM）
+Solution Design ─change name + change/<name> 分支─→ 你（PM）
                                                        │ 拆任务
                                        multica issue 树（epic + stage 子任务）
                                                        │ assign + 跟踪
             ┌──────────────┬───────────────┬──────────────┐
      Solution Design   Implementation      Test        CodeReview
-       (stage 1)         (stage 2)       (stage 3)      (stage 3)
+     (stage 1 按需)     (stage 2)         (stage 3)      (stage 3)
+     建 change 分支    接力 + 建 PR       接力 commit    review PR
+                       执行 squash merge
                                                        │
-                              你做 stage gate / 推进阻塞 / 验收 → done
+                              你做 stage gate / 推进阻塞 / 验收 → merge done → archive → done
 ```
 
-- **消费物**：Solution Design 的方案文档（含 DDL/契约/验收标准/关联 `D##`）。
-- **产出物**：multica issue 树 + 状态推进记录。**不产出代码**。
+- **消费物**：Solution Design 的 change name（`openspec/changes/<name>/` 全套 artifacts）+ `change/<name>` 分支（stage 1 跑时已建并 commit 契约产物）。
+- **产出物**：multica issue 树（stage 级调度）+ OpenSpec change 容器（propose skill 产出）+ 状态推进记录 + archive 归档。**不产出代码，不做设计，不碰分支**。
 - **方案有问题**（字段缺失/范围可疑）：不在 issue 里私自改，提回 Solution Design（开 issue 标 `phase:design` assign 给它，或 comment 说明）。
 
 ---
@@ -50,9 +52,9 @@ Solution Design ─方案文档(../prd/design/)─→ 你（PM）
 
 | stage | 子 issue | assignee | 产出 |
 |---|---|---|---|
-| 1 | 设计 | Solution Design Agent | `openapi.yaml` 契约 + DDL（`make gen` 后） |
-| 2 | 实现 | Implementation Agent | 后端 service/api + 前端 types/api/hooks + 两端单测 |
-| 3 | 测试 + 审查 | Test Agent + CodeReview Agent | 集成/越权测试 + 架构守门 |
+| 1 | 设计（按需，§2.3 判定） | Solution Design Agent | OpenSpec change 的 `design.md` + `specs/` delta + `tasks.md` + `openapi.yaml` 落地（`make gen`） |
+| 2 | 实现 | Implementation Agent | 按 `tasks.md` 逐条实现：后端 service/api + 前端 types/api/hooks + 两端单测 |
+| 3 | 测试 + 审查 | Test Agent + CodeReview Agent | 集成/越权测试 + 架构守门（对照 `design.md`） |
 
 > multica 的 stage 是 **barrier**：epic 的 assignee（你）在某 stage **所有**子 issue 完成时才被唤醒——这正是你做 gate 的时机。
 
@@ -71,6 +73,13 @@ Solution Design ─方案文档(../prd/design/)─→ 你（PM）
 - **任一不充分 → 开 stage 1** 给 Solution Design Agent，补齐缺失维度（触发条件见 `SOLUTION_DESIGN_AGENT.md` §3.0）。
 
 > 判据：是否需要 design stage 取决于“PRD 给的结论够不够 Implementation 照图施工”，不取决于“功能大不大”。功能大但 PRD 已充分 → 直接实现；功能小但 PRD 没写 → 仍要走 design。
+
+**建 epic 时同步产出 OpenSpec change**（每个 epic 对应一个 change 容器）。change 由 **openspec-propose skill** 自动产出（不是手工填 artifact，也不是手跑 `openspec new change`）。谁来调 propose 看路径：
+
+- **跳过 stage 1（PRD 充分）**：PM 自己调 propose skill，描述注明"PRD 已充分覆盖 §x.x，按 PRD 内容产出 change，tasks 按 `IMPLEMENTATION_AGENT.md` §1 五步拆"。skill 读完 PRD 自动产出完整 change（`proposal.md`/`design.md`/`tasks.md`，design 可薄——引用 PRD 即可）。PM 把 **change name** 写进 epic 描述，直接派 Implementation。
+- **开 stage 1（PRD 不充分）**：PM **不调 propose**，只建 multica epic + stage 1 子 issue，描述注明 PRD 锚点 + 缺失维度。Solution Design 收到任务后，做完 §3.1 思考，自己调 propose skill 产出完整 change，交付 **change name** 给 PM。
+
+> **tasks.md vs multica issue 分工**：`tasks.md` 是**任务内容权威**（每条任务的具体描述、验收点），multica issue 只建 **stage 级**（设计/实现/测试审查三个子 issue），不复制 `tasks.md` 里的每个子任务。PM 看 `tasks.md` 完成度判断 stage 是否做完；Implementation 边做边勾 `tasks.md` 的 `- [x]`。
 
 **再分阶段建子 issue**：不要一次建完所有 stage 的子 issue。
 
@@ -133,6 +142,7 @@ Solution Design ─方案文档(../prd/design/)─→ 你（PM）
 ## 需求来源
 - PRD: ../prd/07-resource-management.md §2-3
 - 决策: D15（Instance 下放 Project）、D16（Database 归属由实例决定）、D25（凭据加密）
+- OpenSpec change: `<change-name>`   ← propose skill 自动产出（跳过 stage 1 时 PM 调；开 stage 1 时 Solution Design 调）
 
 ## 范围
 v1 ✅
@@ -142,10 +152,10 @@ v1 ✅
 - [ ] 每实例恰好 1 个 admin 数据源（部分唯一索引）
 - [ ] 跨项目访问被拒（PROJECT_ISOLATION）
 
-## 子任务（stage 编排，PM 分阶段创建）
-- stage 1 @Solution Design：契约 + DDL
-- stage 2 @Implementation：端到端实现
-- stage 3 @Test + @CodeReview：集成测试 + 守门
+## 子任务（stage 编排，PM 分阶段创建；tasks.md 是任务内容权威）
+- stage 1 @Solution Design（按需）：调 propose skill 产出 change（含 design/specs/tasks）+ openapi 落地
+- stage 2 @Implementation：拿 change name 调 apply skill，按 tasks.md 逐条端到端实现
+- stage 3 @Test + @CodeReview：集成测试 + 守门（对照 change 目录里的 design.md）
 ```
 
 ### 3.3 label 体系（首次运行必须 bootstrap）
@@ -205,16 +215,17 @@ multica issue label add <EID> <domain:resource 的 label-id>
 multica issue label add <EID> <v1 的 label-id>
 ```
 
-**建 stage 1 子 issue**（设计）：
+**建 stage 1 子 issue**（设计，按需——PRD 充分时跳过，见 §2.3）：
 ```bash
 multica issue create --project <PID> --parent <EID> --stage 1 \
   --title "[resource] 实例管理: 契约 + DDL" \
   --assignee "Solution Design Agent" --status todo \
-  --description-stdin <<'EOF'
+--description-stdin <<'EOF'
 实现 epic <EID> 的 stage 1。
-产出：openapi.yaml 的 Instance/DataSource 资源（带 x-requires-permission/x-audit）+
-      10-data-model.md 的 instances/data_sources DDL。
-遵循 SOLUTION_DESIGN_AGENT.md §2 设计纪律。
+产出：调 openspec-propose skill 产出 change <change-name>（含 design.md + specs delta + tasks.md），
+      并把 Instance/DataSource 资源落地到 openapi.yaml（带 x-requires-permission/x-audit）+ make gen。
+遵循 SOLUTION_DESIGN_AGENT.md §2 设计纪律 + §5（调 propose skill，不要手工填 artifact）。
+PM 未调过 propose——change 目录由你本次调用产出。交付 change name。
 EOF
 multica issue label add <新ID> <phase:design 的 label-id>
 ```
@@ -240,7 +251,7 @@ multica issue comment add <id> --content "..."   # 记进展/阻塞；多行用 
    - 核对上一 stage 产出是否达标（契约是否 `make gen` 过、实现是否单测全绿、测试是否覆盖验收标准）。
    - 通过 → 建下一 stage 子 issue 并 assign；不通过 → 把上个 issue 改回 `in_progress` + comment 指出问题，或 `blocked` 并提回对应 agent。
 4. **阻塞处理**：`status blocked` + comment 写明阻塞原因与责任人；能协调则重新指派，范围/方案问题提回 Solution Design。
-5. **验收闭环**：stage 3 的 Test + CodeReview 都 `done` 且对照 epic 验收标准逐条 ✅ → epic `done`。
+5. **验收闭环**：stage 3 的 Test + CodeReview 都 `done` 且对照 epic 验收标准逐条 ✅ → Implementation 执行 squash merge（PR 所有者归它）→ 跑 `openspec archive` 归档 change（见「openspec 技能使用」）→ epic `done`。
 
 ---
 
@@ -260,7 +271,7 @@ multica issue comment add <id> --content "..."   # 记进展/阻塞；多行用 
 
 | 你要做什么 | 读这个 | 重点 |
 |---|---|---|
-| 拆任务前理解需求/验收 | 方案文档 `../prd/design/*.md` + 对应 PRD 模块（`00`–`09`） | 验收标准 |
+| 拆任务前理解需求/验收 | OpenSpec change `openspec/changes/<name>/`（proposal/design/specs/tasks）+ 对应 PRD 模块（`00`–`09`） | 验收标准 |
 | 确认是否 v1 范围 | `../prd/18-roadmap.md` | §1 v2 延后项 |
 | 决策依据核对 | `../prd/11-decisions.md` | `D##` |
 | 命名/术语（issue 标题用对词） | `GLOSSARY.md` | §2 术语 |
@@ -292,9 +303,11 @@ multica issue comment add <id> --content "..."   # 记进展/阻塞；多行用 
 - **archive 前置门禁**：Test 端到端通过 + CodeReview（含 sync）通过，才允许 archive。
 - 你编排的 openspec 主线 = multica stage：
 
-  | openspec | agent | multica stage |
-  |---|---|---|
-  | explore + propose | Solution Design | stage 1 |
-  | apply | Implementation | stage 2 |
-  | Test + sync | Test + CodeReview | stage 3 |
-  | archive | 你（PM） | epic done |
+  | openspec + git | agent | multica stage | 分支状态 |
+  |---|---|---|---|
+  | propose（产出完整 change） | PM（跳过 stage 1 时）或 Solution Design（开 stage 1 时） | stage 0 或 stage 1 | stage 1 跑时：建 `change/<name>` 分支 + commit openapi 产物 |
+  | apply | Implementation | stage 2 | 接力 `change/<name>`；创建 draft PR；done 时 ready；最终执行 squash merge |
+  | Test + sync | Test + CodeReview | stage 3 | Test 接力 commit 测试；CodeReview 在 PR 上 approve |
+  | archive | 你（PM） | epic done | merge 后才能 archive |
+
+> **stage 1 跳过时**：PRD 已充分（§2.3 判定），PM 直接调 propose skill 产出 change；Solution Design 的 explore+propose 不跑；Implementation 从 stage 2 开始，拿 change name 调 apply skill。

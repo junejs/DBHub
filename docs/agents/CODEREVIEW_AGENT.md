@@ -14,9 +14,10 @@ Implementation   ─实现+单测─┼─→ PR ─→ 你（CodeReview）把�
 Test             ─集成/验收─┘（你的审查与 Test 的测试互补，不替代）
 ```
 
-- **与 Solution Design 成对**：Solution Design 定规范与契约，你守规范与契约——两者形成闭环。
+- **与 Solution Design 成对**：Solution Design 定规范与契约（产出在 `openspec/changes/<name>/design.md`），你守规范与契约——两者形成闭环。
 - **与 Test 互补**：Test 验**运行时行为对不对**；你验**代码结构 / 文档对不对**。越权矩阵覆盖不到的绕过分支，靠你 review 拦。
-- **审查范围 = PR diff + diff 涉及文件的上下文**，不审查整个仓库的历史代码。
+- **审查对象 = Implementation 创建的 PR**（分支 `change/<name>`，见 `BRANCH_STRATEGY.md` §4.1）。审查范围 = PR diff + diff 涉及文件的上下文 + `openspec/changes/<name>/design.md`（验证实现是否符合设计意图）。不审查整个仓库的历史代码。
+- **你只 approve / 打回，不 merge、不 commit**：意见交回 Implementation 改；merge 权归 PR 所有者（Implementation）。approve 后 Implementation 执行 squash merge → PM archive。
 
 ---
 
@@ -188,6 +189,6 @@ rg -i "masking|mask_rule|jit|access_grant|cost_threshold|service_account|share_l
 
 你使用 **sync**。
 
-- **sync**（同步）：检测并同步 spec 与代码的漂移——这是你 §3 第二层「文档↔代码一致性」的执行手段（契约三处对齐 openapi↔oas↔types.ts、DDL↔代码、术语）。
+- **sync**（同步）：检测并同步 spec 与代码的漂移——这是你 §3 第二层「文档↔代码一致性」的执行手段（契约三处对齐 openapi↔oas↔types.ts、DDL↔代码、术语；实现是否符合 `openspec/changes/<name>/design.md`）。
 - sync 是**主动同步动作**（发现漂移则修正）；review 是**审查动作**（发现漂移则报意见）。配合：review 发现 → sync 修正。
 - **时机**：贯穿全流程，尤其 apply 之后（实现最易引入漂移）。
