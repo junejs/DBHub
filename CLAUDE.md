@@ -162,7 +162,7 @@ Path alias: `@` → `src`. Dev requests to `/v1` are proxied to the backend at `
 - **Generated code is off-limits**: editing `internal/oas/*` by hand is wasted work.
 - **Security is not yet implemented**: `internal/api/security.go` is a **passthrough placeholder that accepts any credential**, and the auth/ACL/audit chi middleware is a TODO. The declarative `x-requires-permission`/`x-audit` enforcement layer must exist before any deployment.
 
-## Git (GitHub Flow — see [prd_document/BRANCH_STRATEGY.md](prd_document/BRANCH_STRATEGY.md))
+## Git (GitHub Flow — see [BRANCH_STRATEGY.md](BRANCH_STRATEGY.md))
 
 **GitHub Flow**: one protected long-lived branch, `main` (always deployable, always green). Everything else is a short-lived feature branch → PR → CI → review → **squash merge** → delete branch. No `develop`/`release` branches; environments come from config, not branches.
 
