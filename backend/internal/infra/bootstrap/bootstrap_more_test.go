@@ -2,6 +2,7 @@ package bootstrap_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgerrcode"
@@ -128,3 +129,61 @@ func TestEnsureFirstAdmin_DuplicateEmailIdempotent(t *testing.T) {
 // code we wire to is the documented pg constraint code. The test file itself
 // doesn't read it directly but the import keeps the dependency explicit.
 var _ = pgerrcode.UniqueViolation
+
+// TestEnsureFirstAdmin_BcryptFailureOnTooLongPassword covers the bcrypt error
+// branch (bootstrap.go:62-64). bcrypt.GenerateFromPassword rejects passwords
+// longer than 72 bytes; EnsureFirstAdmin must surface that as a "hash
+// password" error rather than crashing or silently succeeding. No row should
+// be inserted, and the too-long password must never appear in logs.
+func TestEnsureFirstAdmin_BcryptFailureOnTooLongPassword(t *testing.T) {
+	ctx := context.Background()
+	bunDB, dsn, cleanup := dbtest.NewPostgres(ctx, t)
+	defer cleanup()
+	require.NoError(t, migrate.Up(ctx, dsn))
+
+	logs := captureLogs(t)
+	// 100 bytes exceeds bcrypt's 72-byte maximum; GenerateFromPassword errors.
+	tooLong := strings.Repeat("x", 100)
+	err := bootstrap.EnsureFirstAdmin(ctx, bunDB, "root@example.com", tooLong)
+	require.Error(t, err, "bcrypt must reject > 72-byte password")
+	assert.Contains(t, err.Error(), "hash password",
+		"error must come from the bcrypt step")
+
+	// The failed bootstrap must not leave a row behind.
+	var n int
+	require.NoError(t, bunDB.NewSelect().TableExpr("users").
+		ColumnExpr("count(*)").Scan(ctx, &n))
+	assert.Equal(t, 0, n, "no user should be inserted when bcrypt fails")
+
+	// And the (over-long) password value must never leak into logs.
+	assert.False(t, strings.Contains(logs.String(), tooLong),
+		"over-long password leaked into logs")
+}
+
+// TestEnsureFirstAdmin_CancelledContextReturnsError covers the "check existing
+// user" error branch (bootstrap.go:45-47). With a pre-cancelled context, the
+// first query (hasAnyActiveUser's SELECT) must fail and EnsureFirstAdmin must
+// surface that as a "check existing user" error rather than proceeding to the
+// insert or silently swallowing the cancellation.
+func TestEnsureFirstAdmin_CancelledContextReturnsError(t *testing.T) {
+	setupCtx := context.Background()
+	bunDB, dsn, cleanup := dbtest.NewPostgres(setupCtx, t)
+	defer cleanup()
+	require.NoError(t, migrate.Up(setupCtx, dsn))
+
+	// Pre-cancel the context handed to EnsureFirstAdmin so the very first
+	// query in hasAnyActiveUser fails with context.Canceled.
+	callCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := bootstrap.EnsureFirstAdmin(callCtx, bunDB, "root@example.com", "pw")
+	require.Error(t, err, "cancelled ctx must surface as an error")
+	assert.Contains(t, err.Error(), "check existing user",
+		"error must come from the hasAnyActiveUser step")
+
+	// Sanity: no user created.
+	var n int
+	require.NoError(t, bunDB.NewSelect().TableExpr("users").
+		ColumnExpr("count(*)").Scan(setupCtx, &n))
+	assert.Equal(t, 0, n, "no user should be inserted when the check fails")
+}

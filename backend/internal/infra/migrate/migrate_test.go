@@ -88,3 +88,31 @@ func TestMigrateUp_RejectsEmptyDSN(t *testing.T) {
 	err := migrate.Up(context.Background(), "")
 	require.Error(t, err, "empty DSN must return an error")
 }
+
+// TestMigrateUp_BadSchemeReturnsError covers the migrate.NewWithSourceInstance
+// error path inside Up: a DSN whose scheme matches no registered driver must
+// surface as a "new migrate" error rather than silently doing nothing. No
+// container needed — the failure happens during driver lookup, before any
+// real connection is attempted.
+func TestMigrateUp_BadSchemeReturnsError(t *testing.T) {
+	err := migrate.Up(context.Background(), "bogus-scheme://nonexistent.invalid:1/db")
+	require.Error(t, err, "unsupported DSN scheme must return an error")
+	assert.Contains(t, err.Error(), "new migrate",
+		"error must come from the NewWithSourceInstance step")
+}
+
+// TestMigrateUp_CancelledContextReturnsError covers the ctx.Err() check inside
+// Up. After NewWithSourceInstance succeeds against a real PG, the pre-cancelled
+// context must surface as a "context canceled" error from Up so callers can
+// respect shutdown signals.
+func TestMigrateUp_CancelledContextReturnsError(t *testing.T) {
+	_, dsn, cleanup := dbtest.NewPostgres(context.Background(), t)
+	defer cleanup()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := migrate.Up(ctx, dsn)
+	require.Error(t, err, "pre-cancelled ctx must return an error")
+	assert.Contains(t, err.Error(), "context canceled")
+}

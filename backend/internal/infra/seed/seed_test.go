@@ -104,6 +104,53 @@ func TestSeedBuiltin_EnvironmentProtectionOrder(t *testing.T) {
 	assert.Greater(t, protectionLevels["test"], protectionLevels["dev"])
 }
 
+// TestSeedBuiltin_NilDBReturnsError covers the nil-DB guard at seed.go:86-88.
+// No container needed: SeedBuiltin must fail fast before touching the DB so
+// mis-wiring at the call site (forgot to inject *bun.DB) surfaces immediately
+// rather than as a nil-pointer panic deep inside a helper.
+func TestSeedBuiltin_NilDBReturnsError(t *testing.T) {
+	err := seed.SeedBuiltin(context.Background(), nil)
+	require.Error(t, err, "nil bun.DB must return an error")
+	assert.Contains(t, err.Error(), "nil bun.DB")
+}
+
+// TestSeedBuiltin_FailsOnUnmigratedDB covers SeedBuiltin's first `return err`
+// path (the seedEnvironments failure) by calling it against a fresh PostgreSQL
+// that has NOT been migrated. Every INSERT fails because the tables do not
+// exist; SeedBuiltin must surface that as an error, not silently no-op.
+func TestSeedBuiltin_FailsOnUnmigratedDB(t *testing.T) {
+	ctx := context.Background()
+	bunDB, _, cleanup := dbtest.NewPostgres(ctx, t)
+	defer cleanup()
+	// Intentionally skip migrate.Up: none of the seed tables exist.
+
+	err := seed.SeedBuiltin(ctx, bunDB)
+	require.Error(t, err, "SeedBuiltin must fail when tables are missing")
+	assert.Contains(t, err.Error(), "seed environments",
+		"error must come from the environments step (first INSERT)")
+}
+
+// TestSeedBuiltin_FailsWhenEnvironmentPoliciesTableMissing covers
+// SeedBuiltin's second `return err` path (the seedEnvironmentPolicies
+// failure). After migrate we drop only environment_policies: seedEnvironments
+// still succeeds but the policy INSERT fails on the missing table.
+func TestSeedBuiltin_FailsWhenEnvironmentPoliciesTableMissing(t *testing.T) {
+	ctx := context.Background()
+	bunDB, dsn, cleanup := dbtest.NewPostgres(ctx, t)
+	defer cleanup()
+	require.NoError(t, migrate.Up(ctx, dsn))
+
+	// Drop only environment_policies so we exercise the second-stage failure
+	// rather than the environments-stage failure covered above.
+	_, err := bunDB.ExecContext(ctx, "DROP TABLE environment_policies CASCADE")
+	require.NoError(t, err)
+
+	err = seed.SeedBuiltin(ctx, bunDB)
+	require.Error(t, err, "SeedBuiltin must fail when environment_policies is missing")
+	assert.Contains(t, err.Error(), "environment_policies",
+		"error must come from the policy step (second INSERT)")
+}
+
 // snapshotCounts returns the row counts for each seeded table; used to verify
 // idempotency byte-for-byte.
 func snapshotCounts(ctx context.Context, bunDB *bun.DB) map[string]int {
