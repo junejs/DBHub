@@ -17,6 +17,7 @@ import (
 	"github.com/junepy/dbhub/backend/internal/infra/bootstrap"
 	"github.com/junepy/dbhub/backend/internal/infra/db"
 	"github.com/junepy/dbhub/backend/internal/infra/migrate"
+	"github.com/junepy/dbhub/backend/internal/infra/secret"
 	"github.com/junepy/dbhub/backend/internal/infra/seed"
 	"github.com/junepy/dbhub/backend/internal/oas"
 	"github.com/junepy/dbhub/backend/internal/service"
@@ -34,6 +35,17 @@ func run() int {
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
 		logger.Error("DB_DSN not set; refusing to start without a platform database")
+		return 1
+	}
+
+	// Validate MASTER_KEY format at startup so misconfiguration fails fast
+	// (D25 / 16-ops §3: base64-encoded 32 bytes). The Crypto/Provider instance
+	// is constructed by secret-consuming services (IdP, data source) when they
+	// land; here we only exercise validation to refuse boot on a bad key.
+	if _, err := secret.LoadMasterKey(os.Getenv("MASTER_KEY")); err != nil {
+		logger.Error("invalid MASTER_KEY; refusing to start",
+			"error", err,
+			"hint", "generate a valid key with: openssl rand -base64 32")
 		return 1
 	}
 
