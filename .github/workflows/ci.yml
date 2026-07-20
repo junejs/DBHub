@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel any in-flight run for the same ref when a new push lands.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------
+  # Backend: lint + race-enabled tests against the current Go toolchain.
+  # ---------------------------------------------------------------------
+  backend:
+    name: Backend (lint + test -race)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Download golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.62.1
+          working-directory: backend
+          args: --timeout=5m
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test -race
+        # Postgres-backed tests use testcontainers and need Docker, which the
+        # ubuntu-latest runner provides. They are tagged via build constraint
+        # in internal/service/project_postgres_test.go.
+        run: go test -race ./...
+
+  # ---------------------------------------------------------------------
+  # Frontend: lint, typecheck, unit tests, and production build.
+  # ---------------------------------------------------------------------
+  frontend:
+    name: Frontend (lint + typecheck + test + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        run: npm install -g pnpm@9.15.0
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint (Biome)
+        run: pnpm lint
+
+      - name: Typecheck (tsc -b)
+        run: pnpm typecheck
+
+      - name: Unit tests (Vitest)
+        run: pnpm test
+
+      - name: Production build
+        run: pnpm build
+
+  # ---------------------------------------------------------------------
+  # Contract governance: regenerate internal/oas and fail if the result
+  # differs from what is committed (prevents "edit contract, forget gen").
+  # ---------------------------------------------------------------------
+  contract-check:
+    name: Contract (openapi -> ogen not stale)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: make gen
+        run: make gen
+
+      - name: Detect drift in internal/oas
+        run: |
+          if ! git diff --exit-code -- internal/oas/; then
+            echo "::error::internal/oas is stale. Run 'cd backend && make gen' and commit the result."
+            git --no-pager diff --stat -- internal/oas/
+            exit 1
+          fi

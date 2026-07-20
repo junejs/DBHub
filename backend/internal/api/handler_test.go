@@ -82,3 +82,22 @@ func TestHandler_Readyz_NilDBReturnsOK(t *testing.T) {
 	_, ok := res.(*oas.ReadyzOK)
 	assert.True(t, ok, "expected ReadyzOK with nil platform DB")
 }
+
+// TestHandler_Readyz_PinguFailureReturnsContractError exercises the real-PG
+// failure path without spinning up Postgres: we inject a stub bun.DB whose
+// PingContext always errors. The returned *oas.Error must carry the unified
+// contract shape with details[].reason = DB_NOT_READY.
+func TestHandler_Readyz_PingFailureReturnsContractError(t *testing.T) {
+	failing := newFailingPlatformDB(t)
+	h := NewHandler(service.NewProjectService(stubRepo{}), failing)
+
+	res, err := h.Readyz(context.Background())
+	require.NoError(t, err)
+	oasErr, ok := res.(*oas.Error)
+	require.True(t, ok, "expected *oas.Error on ping failure, got %T", res)
+	assert.Equal(t, 503, oasErr.Code)
+	require.Len(t, oasErr.Details, 1)
+	assert.Equal(t, service.ReasonDBNotReady, oasErr.Details[0].Reason.Value)
+	assert.Equal(t, service.ErrorDomain, oasErr.Details[0].Domain.Value)
+	assert.Equal(t, service.ErrorInfoType, oasErr.Details[0].Type.Value)
+}

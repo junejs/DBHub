@@ -6,6 +6,7 @@ package api
 
 import (
 	"context"
+	"net/http"
 	"strings"
 
 	"github.com/uptrace/bun"
@@ -38,17 +39,36 @@ func (h *Handler) Healthz(_ context.Context) (oas.HealthzOK, error) {
 // Readyz implements readyz. Readiness probe — process is up AND platform PG is
 // reachable. When platform DB is not configured (e.g. in-process tests), returns
 // 200 unconditionally to keep existing tests working.
+//
+// When PG is configured but unreachable, returns the contract's unified Error
+// shape with details[].reason = DB_NOT_READY (12-api-contract.md §4).
 func (h *Handler) Readyz(ctx context.Context) (oas.ReadyzRes, error) {
 	if h.platform == nil {
 		return &oas.ReadyzOK{Data: strings.NewReader("ready")}, nil
 	}
 	if err := db.Ping(ctx, h.platform); err != nil {
-		return &oas.Error{
-			Code:    503,
-			Message: "platform DB unreachable",
-		}, nil
+		// ogen's readyz encoder renders *oas.Error at HTTP 503.
+		return readyzError(err), nil
 	}
 	return &oas.ReadyzOK{Data: strings.NewReader("ready")}, nil
+}
+
+// readyzError builds the contract-shaped Error response for a failed /readyz
+// ping. The underlying error is intentionally not echoed back (avoid leaking
+// connection internals to anonymous probes); it is left to the caller to log.
+func readyzError(_ error) *oas.Error {
+	reason := service.ReasonDBNotReady
+	domain := service.ErrorDomain
+	t := service.ErrorInfoType
+	return &oas.Error{
+		Code:    http.StatusServiceUnavailable,
+		Message: "not ready",
+		Details: []oas.ErrorDetail{{
+			Type:   oas.NewOptString(t),
+			Reason: oas.NewOptString(reason),
+			Domain: oas.NewOptString(domain),
+		}},
+	}
 }
 
 // ListProjects implements listProjects.
