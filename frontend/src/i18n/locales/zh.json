@@ -1,0 +1,61 @@
+{
+  "app": {
+    "title": "DBHUB",
+    "tagline": "集中式数据库查询与导出平台"
+  },
+  "common": {
+    "language": "语言",
+    "languageZh": "简体中文",
+    "languageEn": "English",
+    "brand": "DBHUB",
+    "loading": "加载中…",
+    "empty": "暂无数据",
+    "errorTitle": "发生错误",
+    "errorDefault": "请稍后重试，或联系管理员。",
+    "retry": "重试",
+    "refresh": "刷新",
+    "cancel": "取消",
+    "confirm": "确定",
+    "backHome": "返回首页",
+    "notFoundTitle": "页面不存在",
+    "notFoundDescription": "你访问的页面不存在或已被移动。",
+    "forbiddenTitle": "无权访问",
+    "forbiddenDescription": "你没有访问该资源的权限，请联系管理员。",
+    "rateLimitedTitle": "操作过于频繁",
+    "rateLimitedDescription": "请稍后再试。",
+    "concurrentModificationTitle": "内容已被他人修改",
+    "concurrentModificationDescription": "刷新后重试。",
+    "logout": "登出",
+    "settings": "设置",
+    "notifications": "通知",
+    "project": "项目",
+    "projectSelect": "选择项目",
+    "projectNone": "暂无项目",
+    "userMenu": "用户菜单",
+    "profile": "个人设置"
+  },
+  "nav": {
+    "workbench": "工作台",
+    "resources": "资源",
+    "favorites": "收藏",
+    "exports": "导出中心",
+    "audit": "审计",
+    "admin": "管理后台",
+    "adminInstances": "实例管理",
+    "adminEnvironments": "环境与策略",
+    "adminIdps": "身份提供商",
+    "adminUsers": "用户与组",
+    "adminSettings": "平台设置"
+  },
+  "placeholder": {
+    "login": "登录页占位（认证尚未接入）",
+    "workbench": "SQL 查询工作台占位",
+    "resources": "资源浏览器占位",
+    "favorites": "我的收藏占位",
+    "exports": "导出中心占位",
+    "audit": "审计查询占位",
+    "notifications": "通知中心占位",
+    "admin": "管理后台占位",
+    "settings": "个人设置占位"
+  }
+}

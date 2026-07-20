@@ -1,0 +1,61 @@
+{
+  "app": {
+    "title": "DBHUB",
+    "tagline": "Centralized database query and export platform"
+  },
+  "common": {
+    "language": "Language",
+    "languageZh": "简体中文",
+    "languageEn": "English",
+    "brand": "DBHUB",
+    "loading": "Loading…",
+    "empty": "No data",
+    "errorTitle": "Something went wrong",
+    "errorDefault": "Please try again later or contact your administrator.",
+    "retry": "Retry",
+    "refresh": "Refresh",
+    "cancel": "Cancel",
+    "confirm": "OK",
+    "backHome": "Back to home",
+    "notFoundTitle": "Page not found",
+    "notFoundDescription": "The page you are looking for does not exist or has been moved.",
+    "forbiddenTitle": "Access forbidden",
+    "forbiddenDescription": "You do not have permission to access this resource. Please contact your administrator.",
+    "rateLimitedTitle": "Too many requests",
+    "rateLimitedDescription": "Please try again later.",
+    "concurrentModificationTitle": "Content was edited by someone else",
+    "concurrentModificationDescription": "Refresh and try again.",
+    "logout": "Sign out",
+    "settings": "Settings",
+    "notifications": "Notifications",
+    "project": "Project",
+    "projectSelect": "Select project",
+    "projectNone": "No projects",
+    "userMenu": "User menu",
+    "profile": "Profile"
+  },
+  "nav": {
+    "workbench": "Workbench",
+    "resources": "Resources",
+    "favorites": "Favorites",
+    "exports": "Exports",
+    "audit": "Audit",
+    "admin": "Admin",
+    "adminInstances": "Instances",
+    "adminEnvironments": "Environments & policies",
+    "adminIdps": "Identity providers",
+    "adminUsers": "Users & groups",
+    "adminSettings": "Platform settings"
+  },
+  "placeholder": {
+    "login": "Login placeholder (auth not wired)",
+    "workbench": "SQL workbench placeholder",
+    "resources": "Resource browser placeholder",
+    "favorites": "My favorites placeholder",
+    "exports": "Export center placeholder",
+    "audit": "Audit query placeholder",
+    "notifications": "Notifications placeholder",
+    "admin": "Admin placeholder",
+    "settings": "Profile settings placeholder"
+  }
+}
