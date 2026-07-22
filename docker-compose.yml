@@ -1,3 +1,16 @@
+# DBHUB local development stack.
+#
+# One-command local startup:
+#   docker compose up db -d      # platform PG only (recommended for `make dev`)
+#   docker compose up -d         # full stack: db + server + web
+#
+# Platform PG defaults (match backend/.env.example):
+#   user/password/db: dbhub / dbhub / dbhub
+#   port: 5432 on host
+# The server image is built from backend/Dockerfile; the web image from
+# frontend/Dockerfile. Override JWT_SECRET / MASTER_KEY via the host env
+# before `docker compose up` for any non-local deployment.
+
 services:
   db:
     image: postgres:17-alpine
@@ -22,8 +35,12 @@ services:
     environment:
       PORT: 8080
       DB_DSN: postgres://dbhub:dbhub@db:5432/dbhub?sslmode=disable
+      # Override via host env for any non-local deployment.
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       MASTER_KEY: ${MASTER_KEY:-change-me-in-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      DEFAULT_LOCALE: ${DEFAULT_LOCALE:-zh}
     ports:
       - "8080:8080"
     depends_on:
